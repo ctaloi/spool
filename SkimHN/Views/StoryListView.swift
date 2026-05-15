@@ -50,6 +50,10 @@ struct StoryListView: View {
     /// `.navigationTransition(.zoom(...))` reads the same id to
     /// animate the row's frame morphing into the detail.
     @Namespace private var storyZoomNamespace
+    /// Single Tip instance — attached to the first row of the
+    /// category feed so it can fire after the user has scrolled a
+    /// few times but never swiped to save anything.
+    private let swipeActionsTip = SwipeActionsTip()
     @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
@@ -508,6 +512,11 @@ struct StoryListView: View {
             ForEach(filteredRanked(viewModel.stories), id: \.1.id) { rank, story in
                 storyRow(rank: rank, story: story)
                     .task { await viewModel.loadMoreIfNeeded(current: story) }
+                    // Anchor SwipeActionsTip on the first row only —
+                    // putting popoverTip on every row would create a
+                    // duplicate-presentation conflict and pin the
+                    // popover to whichever row scrolls into view.
+                    .applyIf(rank == 1) { $0.popoverTip(swipeActionsTip, arrowEdge: .top) }
             }
 
             if viewModel.stories.count < viewModel.totalAvailable {
@@ -1269,6 +1278,11 @@ private struct ScrollTopStateModifier: ViewModifier {
                 withAnimation(.easeOut(duration: 0.18)) {
                     isAtTop = nextAtTop
                 }
+                // Each leave-the-top counts toward the SwipeActionsTip
+                // threshold so it can fire after a few scrolls.
+                if !nextAtTop {
+                    Task { await SwipeActionsTip.listScrolled.donate() }
+                }
             }
         }
     }
@@ -1277,6 +1291,21 @@ private struct ScrollTopStateModifier: ViewModifier {
 private extension View {
     func scrollAwareTopState(isAtTop: Binding<Bool>) -> some View {
         modifier(ScrollTopStateModifier(isAtTop: isAtTop))
+    }
+
+    /// Applies a view transform only when `condition` is true. Used
+    /// for "this single row gets a `popoverTip`" patterns inside a
+    /// ForEach without duplicating the row's modifier chain.
+    @ViewBuilder
+    func applyIf<Modified: View>(
+        _ condition: Bool,
+        @ViewBuilder _ transform: (Self) -> Modified
+    ) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 }
 

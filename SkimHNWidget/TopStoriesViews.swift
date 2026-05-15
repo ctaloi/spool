@@ -84,13 +84,17 @@ private struct MediumStoryView: View {
     let entry: TopStoriesEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(entry.stories.prefix(3).enumerated()), id: \.element.id) { idx, story in
-                Link(destination: URL(string: "skimhn://story/\(story.id)")!) {
-                    storyRow(rank: idx + 1, story: story)
+        if entry.stories.isEmpty {
+            WidgetEmptyState(isStale: entry.isStale)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(entry.stories.prefix(3).enumerated()), id: \.element.id) { idx, story in
+                    Link(destination: URL(string: "skimhn://story/\(story.id)")!) {
+                        storyRow(rank: idx + 1, story: story)
+                    }
                 }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
     }
 
@@ -126,26 +130,30 @@ private struct LargeStoryView: View {
     let entry: TopStoriesEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Top on HN")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text(entry.date, format: .dateTime.hour().minute())
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.bottom, 6)
+        if entry.stories.isEmpty {
+            WidgetEmptyState(isStale: entry.isStale)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("Top on HN")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text(entry.date, format: .dateTime.hour().minute())
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.bottom, 6)
 
-            ForEach(Array(entry.stories.prefix(6).enumerated()), id: \.element.id) { idx, story in
-                Link(destination: URL(string: "skimhn://story/\(story.id)")!) {
-                    row(rank: idx + 1, story: story)
+                ForEach(Array(entry.stories.prefix(6).enumerated()), id: \.element.id) { idx, story in
+                    Link(destination: URL(string: "skimhn://story/\(story.id)")!) {
+                        row(rank: idx + 1, story: story)
+                    }
+                    if idx < 5 {
+                        Divider().opacity(0.4)
+                    }
                 }
-                if idx < 5 {
-                    Divider().opacity(0.4)
-                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
     }
 
@@ -187,6 +195,36 @@ private struct AccessoryRectangularView: View {
                 .font(.caption.weight(.semibold))
                 .lineLimit(2)
         }
-        .widgetURL(URL(string: "skimhn://story/\(story?.id ?? 0)"))
+        // Only deep-link when we actually have a story. Otherwise
+        // tapping would route to `skimhn://story/0`, which surfaces
+        // a dead-end "story not found" page.
+        .widgetURL(story.map { URL(string: "skimhn://story/\($0.id)") } ?? nil)
+    }
+}
+
+// MARK: - Empty state shared across families
+
+/// Rendered when the timeline provider returned with no stories —
+/// either first-launch before the network call returned, or a
+/// failed refresh leaving the previous entry stale.
+private struct WidgetEmptyState: View {
+    let isStale: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: isStale ? "wifi.exclamationmark" : "sparkles")
+                .font(.title3)
+                .foregroundStyle(isStale ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
+            Text(isStale ? "Couldn't refresh" : "Loading top stories…")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+            if isStale {
+                Text("The widget will try again automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
