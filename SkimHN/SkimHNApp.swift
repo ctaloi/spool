@@ -7,6 +7,10 @@ struct SkimHNApp: App {
     /// `true` for the first ~1.2s of process lifetime, then false for
     /// the rest of the session. Drives the branded splash overlay.
     @State private var showLaunch: Bool = true
+    /// Observed so we can reschedule the Mentions background refresh
+    /// every time the app moves to background. iOS only honors the
+    /// most recently submitted request per identifier.
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -43,5 +47,25 @@ struct SkimHNApp: App {
             FollowedUser.self,
             SeenMention.self,
         ])
+        // Register the Mentions background refresh handler. iOS calls
+        // this when it decides our app gets a runtime budget — could
+        // be 30 minutes from now or hours, depending on user habits
+        // and battery state. We just run the same check-and-notify
+        // pipeline the in-app "Test BG Refresh" button does, then
+        // reschedule.
+        .backgroundTask(.appRefresh(MentionsNotifier.taskIdentifier)) {
+            await MentionsNotifier.runMentionsCheckAndNotify(
+                username: await HNAuthService.shared.currentUser
+            )
+            await MentionsNotifier.scheduleNextRefresh()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // The earliest window iOS will run our refresh in starts
+            // from the next time we submit. Submit on every background
+            // transition so the freshest interval is always pending.
+            if phase == .background {
+                MentionsNotifier.scheduleNextRefresh()
+            }
+        }
     }
 }

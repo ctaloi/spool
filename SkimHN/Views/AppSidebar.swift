@@ -18,6 +18,19 @@ struct AppSidebar: View {
     @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
     @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
 
+    /// One-shot result UI for the "Send Test Notification" row.
+    /// Resets to .idle on dismiss; sticks otherwise so the user can
+    /// confirm what happened.
+    enum NotifierStatus: Equatable {
+        case idle
+        case scheduled
+        case denied(String)
+    }
+    @State private var notifierStatus: NotifierStatus = .idle
+    /// Count of notifications fired by the last "Test BG Refresh"
+    /// tap — nil before first tap, 0 when there was nothing new.
+    @State private var bgRefreshResult: Int?
+
     let onSignIn: () -> Void
     let onSignOut: () -> Void
     let onSubmit: () -> Void
@@ -235,6 +248,87 @@ struct AppSidebar: View {
                 }
             }
             .tint(Theme.accent)
+
+            if auth.isLoggedIn {
+                mentionNotificationTestRow
+                mentionBGRefreshTestRow
+            }
+        }
+    }
+
+    /// Schedules a representative UN notification 5 seconds out so
+    /// the user can lock the device / switch apps and see what the
+    /// real lock-screen experience will look like.
+    @ViewBuilder
+    private var mentionNotificationTestRow: some View {
+        Button {
+            Task {
+                do {
+                    try await MentionsNotifier.sendTestNotification()
+                    notifierStatus = .scheduled
+                } catch {
+                    notifierStatus = .denied(error.localizedDescription)
+                }
+            }
+        } label: {
+            Label {
+                HStack {
+                    Text("Send Test Notification")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    notifierTrailing
+                }
+            } icon: {
+                Image(systemName: "bell.badge")
+            }
+        }
+    }
+
+    /// Runs the same fetch-and-notify pipeline the background task
+    /// runs, in-app. Lets the user confirm the actual mentions check
+    /// end-to-end without waiting for iOS to schedule a real BG slot
+    /// (which can take hours).
+    @ViewBuilder
+    private var mentionBGRefreshTestRow: some View {
+        Button {
+            Task {
+                let fired = await MentionsNotifier.runMentionsCheckAndNotify(username: auth.username)
+                bgRefreshResult = fired
+            }
+        } label: {
+            Label {
+                HStack {
+                    Text("Test BG Refresh Now")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if let count = bgRefreshResult {
+                        Text(count == 0 ? "No new mentions" : "\(count) fired")
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } icon: {
+                Image(systemName: "arrow.clockwise.circle")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var notifierTrailing: some View {
+        switch notifierStatus {
+        case .idle:
+            EmptyView()
+        case .scheduled:
+            Label("In 5s", systemImage: "checkmark")
+                .labelStyle(.titleAndIcon)
+                .font(.footnote)
+                .foregroundStyle(Theme.accent)
+        case .denied(let message):
+            Text(message)
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+                .truncationMode(.tail)
         }
     }
 
