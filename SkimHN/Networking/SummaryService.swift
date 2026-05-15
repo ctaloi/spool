@@ -125,11 +125,13 @@ final class SummaryService {
     Produce a tight summary of the article the user provides.
 
     Format:
-    • TL;DR — one sentence in plain prose.
-    • Then 3 to 5 bullet points covering the most important facts, in order \
-      of importance. Use short, declarative bullets.
-    • End with one bullet labeled "Why HN cares:" explaining the angle \
-      that makes this interesting to a technical audience.
+    - Open with one short sentence in plain prose summarizing the key claim. \
+      Do NOT prefix it with "TL;DR", "Summary:", or any other label — the \
+      surrounding UI already says this is a summary.
+    - Follow with 3 to 5 bullet points covering the most important facts, in \
+      order of importance. Use short, declarative bullets.
+    - End with one paragraph prefixed exactly with "**Why HN cares:**" \
+      explaining the angle that makes this interesting to a technical audience.
 
     Rules:
     - Use only facts present in the provided text. If the text is too short, \

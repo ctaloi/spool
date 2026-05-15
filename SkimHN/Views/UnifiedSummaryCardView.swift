@@ -149,16 +149,24 @@ struct UnifiedSummaryCardView: View {
         } else {
             VStack(alignment: .leading, spacing: 14) {
                 if articleHasResult, canRunArticle {
-                    articleSection
+                    articleSection(showHeader: showSubsectionHeaders)
                 }
-                if articleHasResult && threadHasResult, canRunArticle, canRunThread {
+                if showSubsectionHeaders {
                     SummarySectionDivider()
                 }
                 if threadHasResult, canRunThread {
-                    threadSection
+                    threadSection(showHeader: showSubsectionHeaders)
                 }
             }
         }
+    }
+
+    /// Only label ARTICLE / DISCUSSION when both sub-summaries are
+    /// actually rendering. With just one section visible, the card's
+    /// own "Summary" header is sufficient and the sub-eyebrow would
+    /// be a third stacked label for what reads as one block.
+    private var showSubsectionHeaders: Bool {
+        articleHasResult && threadHasResult && canRunArticle && canRunThread
     }
 
     private var promptText: some View {
@@ -184,9 +192,11 @@ struct UnifiedSummaryCardView: View {
 
     // MARK: - Sections
 
-    private var articleSection: some View {
+    private func articleSection(showHeader: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionHeader("Article")
+            if showHeader {
+                sectionHeader("Article")
+            }
             articleBody
         }
     }
@@ -248,9 +258,11 @@ struct UnifiedSummaryCardView: View {
         }
     }
 
-    private var threadSection: some View {
+    private func threadSection(showHeader: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            sectionHeader("Discussion")
+            if showHeader {
+                sectionHeader("Discussion")
+            }
             threadBody
         }
     }
