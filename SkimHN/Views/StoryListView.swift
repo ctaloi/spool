@@ -43,6 +43,7 @@ struct StoryListView: View {
     private var savedIDs: Set<Int> { Set(savedStories.map(\.id)) }
     private var readIDs: Set<Int> { Set(readStories.map(\.id)) }
     private var readLaterIDs: Set<Int> { Set(readLaterStories.map(\.id)) }
+    private var mentionSeenIDs: Set<Int> { Set(seenMentions.map(\.id)) }
 
     /// Apply the user's hide-read / min-comments filters while
     /// preserving the source's original 1-based rank. We don't
@@ -105,6 +106,17 @@ struct StoryListView: View {
             // change continues to work and snapshots still get recorded.
             if case .category(let feed) = new, viewModel.feed != feed {
                 viewModel.feed = feed
+            }
+        }
+        .onChange(of: auth.isLoggedIn) { _, nowLoggedIn in
+            // Mentions needs a username — if the user just signed in
+            // (or out) while on the Mentions source, re-fire the
+            // loader. Other sources don't depend on auth.
+            guard case .mentions = feedSource else { return }
+            Task {
+                if nowLoggedIn {
+                    await mentions.load(username: auth.username)
+                }
             }
         }
         .sheet(isPresented: $showLogin) {
@@ -598,22 +610,30 @@ struct StoryListView: View {
         }
     }
 
-    /// One Mentions row tagged with a navigable destination — tapping
-    /// opens the host story. Marks the reply seen as a side effect of
-    /// rendering so the unread badge clears even without an explicit
-    /// "mark all as read" affordance.
+    /// One Mentions row. Wrapped in a Button (not the List's
+    /// selection-by-tag pattern) for two reasons:
+    /// 1. Multiple mentions can point to the same host story —
+    ///    selection-by-tag would collapse them to the same Hashable
+    ///    HNItem and highlight every row when one is "selected".
+    /// 2. We want mark-as-seen semantics that match iOS Mail: the dot
+    ///    stays until the user actually opens the row, not when it
+    ///    happens to scroll into view.
     @ViewBuilder
     private func mentionRow(record: MentionRecord) -> some View {
-        let seenIDs = Set(seenMentions.map(\.id))
-        MentionRowView(record: record, isUnread: !seenIDs.contains(record.reply.id))
-            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
-            .listRowSeparator(.hidden)
-            .tag(mentionAsHNItem(record))
-            .onAppear {
-                if !seenIDs.contains(record.reply.id) {
-                    modelContext.insert(SeenMention(id: record.reply.id))
-                }
+        Button {
+            if !mentionSeenIDs.contains(record.reply.id) {
+                modelContext.insert(SeenMention(id: record.reply.id))
             }
+            selectedStory = mentionAsHNItem(record)
+        } label: {
+            MentionRowView(
+                record: record,
+                isUnread: !mentionSeenIDs.contains(record.reply.id)
+            )
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
+        .listRowSeparator(.hidden)
     }
 
     /// Adapt a mention into the selection-driven HNItem currency the

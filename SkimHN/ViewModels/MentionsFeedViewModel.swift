@@ -23,6 +23,12 @@ final class MentionsFeedViewModel: ObservableObject {
         do {
             items = try await HNMentionsService.shared.fetchMentions(for: username)
             lastReloadedAt = .now
+        } catch is CancellationError {
+            // The user switched feeds while we were fetching. Their
+            // intent is the new feed, not an error popup on Mentions.
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             errorMessage = error.localizedDescription
         }
