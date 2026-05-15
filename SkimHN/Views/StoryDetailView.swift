@@ -22,6 +22,7 @@ struct StoryDetailView: View {
     /// learn the article has no image — instead of pulsing forever.
     @State private var heroLookupComplete: Bool = false
     @State private var showThreadQuestion: Bool = false
+    @State private var showShareOptions: Bool = false
 
     init(story: HNItem) {
         _viewModel = StateObject(wrappedValue: StoryDetailViewModel(story: story))
@@ -67,10 +68,13 @@ struct StoryDetailView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                if let urlString = viewModel.story.url, let url = URL(string: urlString) {
-                    ShareLink(item: url)
-                        .keyboardShortcut("s", modifiers: [.command, .shift])
+                Button {
+                    showShareOptions = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                 }
+                .accessibilityLabel("Share Story")
+                .keyboardShortcut("s", modifiers: [.command, .shift])
             }
 
             // Cmd+O / Cmd+Return — open the article in Safari without
@@ -133,6 +137,14 @@ struct StoryDetailView: View {
             ThreadQuestionView(
                 title: viewModel.story.title ?? "",
                 transcript: viewModel.commentsTranscript()
+            )
+        }
+        .sheet(isPresented: $showShareOptions) {
+            ShareOptionsView(
+                title: viewModel.story.title ?? "",
+                url: viewModel.story.url.flatMap(URL.init(string:)),
+                articleSummary: shareableArticleSummary,
+                threadDigest: shareableThreadDigest
             )
         }
         .sheet(item: Binding(
@@ -353,6 +365,30 @@ struct StoryDetailView: View {
     /// swallowed — we just render no banner if the page has no
     /// `og:image` or the network refuses. Also pulls the dominant
     /// color out of the image so we can tint the skeleton/gradient.
+    /// The AI article summary in shareable form — present only after a
+    /// successful generation, or when a saved-story prefetch has
+    /// cached one. Returns nil otherwise so the Share sheet's toggle
+    /// stays disabled.
+    private var shareableArticleSummary: String? {
+        if case .done = summary.state, !summary.text.isEmpty {
+            return summary.text
+        }
+        if let saved = savedStories.first(where: { $0.id == viewModel.story.id }),
+           let cached = saved.cachedSummaryText, !cached.isEmpty {
+            return cached
+        }
+        return nil
+    }
+
+    /// Same for the comment-thread digest. Only available once the
+    /// digest has streamed to .done.
+    private var shareableThreadDigest: String? {
+        if case .done = commentsSummary.state, !commentsSummary.text.isEmpty {
+            return commentsSummary.text
+        }
+        return nil
+    }
+
     /// Adopt the saved record's pre-generated summary if it's available
     /// AND the user hasn't already triggered a live summarize. The
     /// `.idle` guard prevents us from stomping on an in-flight stream

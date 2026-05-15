@@ -239,11 +239,15 @@ struct StoryListView: View {
                 ToolbarItem(placement: .principal) {
                     if !isSearching && !listAtTop {
                         inlineFeedSelector
+                            .transition(.opacity.animation(.easeInOut(duration: 0.28)))
                     } else {
-                        Color.clear.frame(width: 1, height: 1)
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .transition(.opacity.animation(.easeInOut(duration: 0.28)))
                     }
                 }
             }
+            .animation(.easeInOut(duration: 0.28), value: listAtTop)
             // Hide the navbar entirely while the hero is on-screen so
             // the hero touches the status bar with no chrome in between.
             // The scroll observer's hysteresis (in `ScrollTopStateModifier`)
@@ -596,15 +600,15 @@ struct StoryListView: View {
         Menu {
             feedMenuContent
         } label: {
-            HStack(alignment: .center, spacing: 5) {
+            HStack(alignment: .center, spacing: 7) {
                 Image(systemName: feedSource.icon)
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(Theme.accent)
                 Text(feedSource.displayTitle)
-                    .font(.system(size: 17, weight: .thin, design: .default))
+                    .font(.system(size: 20, weight: .light, design: .default))
                     .foregroundStyle(.primary)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
             .contentTransition(.interpolate)
@@ -696,6 +700,16 @@ struct StoryListView: View {
                     "Read Later",
                     systemImage: isActive(.readLater) ? "checkmark" : "tray"
                 )
+            }
+            if !followedUsers.isEmpty {
+                Button {
+                    switchSource(to: .following)
+                } label: {
+                    Label(
+                        "Following",
+                        systemImage: isActive(.following) ? "checkmark" : "person.2"
+                    )
+                }
             }
         }
     }
