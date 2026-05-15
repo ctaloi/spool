@@ -146,10 +146,18 @@ final class StoryDetailViewModel: ObservableObject {
     }
 
     /// Load a level of comments in parallel — every sibling subtree races
-    /// concurrently instead of the old depth-first sequential walk. For a
-    /// thread that's 5 levels deep with 20 top-level replies, this drops
-    /// loading from ~seconds to ~hundreds of milliseconds.
-    private func loadSubtrees(ids: [Int], depth: Int) async throws -> [CommentNode] {
+    /// concurrently instead of the old depth-first sequential walk.
+    ///
+    /// `nonisolated` matters: without it, this @MainActor class would
+    /// pin every recursive task-group continuation to the main thread,
+    /// which is exactly what causes the UI lockup on threads with
+    /// hundreds of comments. The function touches no actor-isolated
+    /// state — it only awaits `HNAPI.shared.items(...)` (its own actor)
+    /// and constructs Sendable `CommentNode` value types — so it's safe
+    /// to run off-main. The result hops back to the main actor only at
+    /// the caller's `insertSubtree` site, which is where the
+    /// `@Published` mutation actually needs to happen.
+    nonisolated private func loadSubtrees(ids: [Int], depth: Int) async throws -> [CommentNode] {
         guard !ids.isEmpty, depth < 8 else { return [] }
         let items = try await HNAPI.shared.items(ids: ids)
 

@@ -33,10 +33,6 @@ actor ArticleFetcher {
     /// works correctly regardless of NSString interning.
     private let previewMissSentinel: NSString = ""
 
-    /// In-flight preview fetches keyed by article URL — coalesces so a
-    /// fast-scrolling feed doesn't hit the same article five times.
-    private var inFlightPreviews: [URL: Task<ArticlePreview, Error>] = [:]
-
     func fetchText(from url: URL, maxCharacters: Int = 12_000) async throws -> String {
         if let cached = cache.object(forKey: url as NSURL) {
             return String((cached as String).prefix(maxCharacters))
@@ -59,33 +55,17 @@ actor ArticleFetcher {
             }
             return ArticlePreview(imageURL: URL(string: cached as String))
         }
-        if let existing = inFlightPreviews[url] {
-            // See ImageFetcher: explicit two-step await silences
-            // SourceKit's "no async operations within await" false
-            // positive on `Task.result.get()`.
-            let result = await existing.result
-            return try result.get()
+        let (html, _) = try await fetchHTML(from: url)
+        let imageURL = Self.extractPreviewImage(from: html, base: url)
+        if let imageURL {
+            previewCache.setObject(
+                imageURL.absoluteString as NSString,
+                forKey: url as NSURL
+            )
+        } else {
+            previewCache.setObject(previewMissSentinel, forKey: url as NSURL)
         }
-        let task = Task<ArticlePreview, Error> {
-            defer { Task { await self.clearPreviewInFlight(url) } }
-            let (html, _) = try await fetchHTML(from: url)
-            let imageURL = Self.extractPreviewImage(from: html, base: url)
-            if let imageURL {
-                self.previewCache.setObject(
-                    imageURL.absoluteString as NSString,
-                    forKey: url as NSURL
-                )
-            } else {
-                self.previewCache.setObject(self.previewMissSentinel, forKey: url as NSURL)
-            }
-            return ArticlePreview(imageURL: imageURL)
-        }
-        inFlightPreviews[url] = task
-        return try await task.value
-    }
-
-    private func clearPreviewInFlight(_ url: URL) {
-        inFlightPreviews[url] = nil
+        return ArticlePreview(imageURL: imageURL)
     }
 
     private func fetchHTML(from url: URL) async throws -> (String, URLResponse) {

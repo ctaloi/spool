@@ -15,6 +15,12 @@ struct StoryDetailView: View {
     @State private var profileTarget: String?
     @State private var domainTarget: String?
     @State private var heroImage: UIImage?
+    @State private var heroAccent: Color?
+    /// `true` once we've finished asking the article for an OG image,
+    /// regardless of outcome. Lets the hero banner show a pulsing
+    /// skeleton while we're looking, then disappear cleanly when we
+    /// learn the article has no image — instead of pulsing forever.
+    @State private var heroLookupComplete: Bool = false
 
     init(story: HNItem) {
         _viewModel = StateObject(wrappedValue: StoryDetailViewModel(story: story))
@@ -142,28 +148,80 @@ struct StoryDetailView: View {
         .contentShape(Capsule(style: .continuous))
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let heroImage, let urlString = viewModel.story.url, let url = URL(string: urlString) {
-                Button {
-                    safariURL = PresentedURL(url: url)
-                } label: {
-                    Image(uiImage: heroImage)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 200)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color(.separator).opacity(0.4), lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open article")
-                .transition(.opacity)
+    /// Hero banner. Three states:
+    /// 1. Article has no URL → no banner.
+    /// 2. Lookup in flight (no image yet, not yet finished) → pulsing
+    ///    skeleton in the source's brand tint (if we know it) or neutral.
+    /// 3. Lookup finished:
+    ///    - Image present → render it with a soft bottom gradient.
+    ///    - No image present → banner hides entirely (no awkward
+    ///      forever-pulsing skeleton for sites that don't ship OG tags).
+    @ViewBuilder
+    private var heroBanner: some View {
+        if let urlString = viewModel.story.url,
+           let url = URL(string: urlString),
+           shouldShowHero {
+            Button {
+                safariURL = PresentedURL(url: url)
+            } label: {
+                Rectangle()
+                    .fill(skeletonColor)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .overlay {
+                        if let heroImage {
+                            Image(uiImage: heroImage)
+                                .resizable()
+                                .scaledToFill()
+                                .transition(.opacity)
+                        } else {
+                            HeroSkeleton(tint: heroAccent ?? Theme.accent)
+                        }
+                    }
+                    .overlay(alignment: .bottom) {
+                        if heroImage != nil {
+                            LinearGradient(
+                                colors: [Color.clear, Color(.systemBackground).opacity(0.45)],
+                                startPoint: .center,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 80)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke((heroAccent ?? Color(.separator)).opacity(heroAccent == nil ? 0.4 : 0.35), lineWidth: 0.5)
+                    )
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open article")
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// True while we're still looking for an OG image, OR after we've
+    /// found one. False once we've finished looking and confirmed the
+    /// article has none — so the placeholder doesn't linger forever on
+    /// image-less articles (changelogs, status pages, repos, etc).
+    private var shouldShowHero: Bool {
+        if heroImage != nil { return true }
+        return !heroLookupComplete
+    }
+
+    /// Tinted-toward-the-source skeleton color while the hero loads. We
+    /// hint at the dominant color once we've got it; otherwise default
+    /// to a neutral system fill so the placeholder doesn't draw the eye.
+    private var skeletonColor: Color {
+        if let heroAccent {
+            return heroAccent.opacity(0.18)
+        }
+        return Color(.tertiarySystemFill)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            heroBanner
 
             Text(viewModel.story.title ?? "(no title)")
                 .font(Theme.Typography.title)
@@ -254,16 +312,33 @@ struct StoryDetailView: View {
 
     /// Best-effort OG image fetch for the article hero. Errors are
     /// swallowed — we just render no banner if the page has no
-    /// `og:image` or the network refuses.
+    /// `og:image` or the network refuses. Also pulls the dominant
+    /// color out of the image so we can tint the skeleton/gradient.
     private func loadHeroImage() async {
         guard let urlString = viewModel.story.url,
-              let url = URL(string: urlString) else { return }
+              let url = URL(string: urlString) else {
+            heroLookupComplete = true
+            return
+        }
+        defer {
+            // Whether we succeeded, errored, or got nothing back, the
+            // skeleton needs to stop pulsing. Animate so the banner
+            // either fades to the loaded image or fades away entirely.
+            withAnimation(.easeInOut(duration: 0.3)) {
+                heroLookupComplete = true
+            }
+        }
         do {
             let preview = try await ArticleFetcher.shared.fetchPreview(from: url)
             guard let imageURL = preview.imageURL else { return }
             let image = try await ImageFetcher.shared.image(for: imageURL)
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(.easeInOut(duration: 0.5)) {
                 heroImage = image
+            }
+            if let extracted = await DominantColor.shared.extract(from: image, url: imageURL) {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    heroAccent = Color(extracted)
+                }
             }
         } catch {
             // Quiet failure — no banner.
@@ -437,6 +512,34 @@ private struct PresentedURL: Identifiable {
 private struct IdentifiedUsername: Identifiable {
     let value: String
     var id: String { value }
+}
+
+/// Quiet pulsing placeholder shown in the hero banner while the OG
+/// image is fetching. A single faint highlight band sweeps left→right
+/// on a 1.6s cycle — slow enough to read as "loading" without drawing
+/// attention to itself.
+private struct HeroSkeleton: View {
+    let tint: Color
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let phase = (sin(t * 2.0 * .pi / 1.8) + 1.0) / 2.0
+            ZStack {
+                tint.opacity(0.16)
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: max(0.0, phase - 0.25)),
+                        .init(color: tint.opacity(0.32), location: phase),
+                        .init(color: .clear, location: min(1.0, phase + 0.25)),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+        }
+        .accessibilityHidden(true)
+    }
 }
 
 /// Same trick for a host name (domain feed sheet).

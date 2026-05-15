@@ -2,10 +2,9 @@ import UIKit
 
 /// Generic image cache + fetcher. Two-tier caching: NSCache for in-memory
 /// (evicts under memory pressure), URLCache for disk so images survive
-/// app restarts. Coalesces concurrent requests for the same URL via an
-/// in-flight task map so a 30-row feed populating thumbnails doesn't
-/// fan out into 30 duplicate downloads if the same image is referenced
-/// twice in the visible window.
+/// app restarts. The actor serializes cache access; concurrent fetches
+/// for the same URL are deduplicated downstream by URLCache, so we
+/// don't bother with an in-flight task map at this layer.
 actor ImageFetcher {
     static let shared = ImageFetcher()
 
@@ -30,39 +29,19 @@ actor ImageFetcher {
         return URLSession(configuration: config)
     }()
 
-    private var inFlight: [URL: Task<UIImage, Error>] = [:]
-
     func image(for url: URL) async throws -> UIImage {
         if let hit = memoryCache.object(forKey: url as NSURL) {
             return hit
         }
-        if let existing = inFlight[url] {
-            // Split the suspension explicitly — `Task.result` IS async,
-            // but SourceKit's flow analysis through `try await x.result.get()`
-            // mis-reports "no async operations within await." Storing the
-            // awaited Result first makes the suspension unambiguous.
-            let result = await existing.result
-            return try result.get()
+        let (data, response) = try await session.data(from: url)
+        if let http = response as? HTTPURLResponse,
+           !(200..<300).contains(http.statusCode) {
+            throw URLError(.badServerResponse)
         }
-        let task = Task<UIImage, Error> {
-            defer { Task { await self.clearInFlight(url) } }
-            let (data, response) = try await session.data(from: url)
-            if let http = response as? HTTPURLResponse,
-               !(200..<300).contains(http.statusCode) {
-                throw URLError(.badServerResponse)
-            }
-            guard let image = UIImage(data: data) else {
-                throw URLError(.cannotDecodeContentData)
-            }
-            let cost = data.count
-            self.memoryCache.setObject(image, forKey: url as NSURL, cost: cost)
-            return image
+        guard let image = UIImage(data: data) else {
+            throw URLError(.cannotDecodeContentData)
         }
-        inFlight[url] = task
-        return try await task.value
-    }
-
-    private func clearInFlight(_ url: URL) {
-        inFlight[url] = nil
+        memoryCache.setObject(image, forKey: url as NSURL, cost: data.count)
+        return image
     }
 }

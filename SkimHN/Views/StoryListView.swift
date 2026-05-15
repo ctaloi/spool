@@ -90,17 +90,35 @@ struct StoryListView: View {
         }
     }
 
-    /// Reveal the sidebar from the content column. Called by the hero
-    /// glyph. NavigationSplitView's native interactive back-swipe on
-    /// compact width handles the drag-to-reveal gesture itself — we
-    /// don't define a custom one, since an `.onEnded` handler would
-    /// shadow the native interactive drag and cause a "jump" instead of
-    /// tracking the finger.
+    /// Reveal the sidebar from the content column. Uses a snappy spring
+    /// so the on-release transition feels responsive rather than the
+    /// slower ease-out we were doing before. NavigationSplitView in
+    /// compact mode doesn't expose state for a truly interactive (drag-
+    /// tracking) reveal, so on-release with a spring is the smoothest
+    /// approximation.
     private func presentSidebar() {
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
             columnVisibility = .all
             preferredCompactColumn = .sidebar
         }
+    }
+
+    /// Leading-edge rightward drag reveals the sidebar. Triggers on
+    /// release once the user has clearly committed to the gesture
+    /// (started near the leading edge, moved right by ≥50pt, mostly
+    /// horizontal). `simultaneousGesture` so the list's vertical scroll
+    /// keeps working.
+    private var leadingEdgeSwipe: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                guard usesCompactNavigation else { return }
+                let startedAtLeadingEdge = value.startLocation.x < 50
+                let movedRightward = value.translation.width > 50
+                let mostlyHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                if startedAtLeadingEdge && movedRightward && mostlyHorizontal {
+                    presentSidebar()
+                }
+            }
     }
 
     /// Centralized switch — also dismisses the compact sidebar so the
@@ -246,6 +264,7 @@ struct StoryListView: View {
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollAwareTopState(isAtTop: $listAtTop)
+        .simultaneousGesture(leadingEdgeSwipe)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
         .animation(.easeInOut(duration: 0.18), value: feedSource)
     }

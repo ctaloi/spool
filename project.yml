@@ -20,6 +20,11 @@ settings:
     INFOPLIST_KEY_UILaunchScreen_BackgroundColor: systemBackground
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+    # iOS 26 recommended settings — applied via Xcode's
+    # "Update to Recommended Settings" prompt and mirrored here so they
+    # survive `xcodegen generate`.
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
 
 targets:
   SkimHN:
