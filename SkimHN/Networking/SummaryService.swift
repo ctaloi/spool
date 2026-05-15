@@ -45,6 +45,14 @@ final class SummaryService {
         }
     }
 
+    /// Convenience for the many gate-on-AI render checks across the
+    /// app. True only when the model can actually serve a request
+    /// right now — covers any future `unavailable` reason without
+    /// pattern-match drift at each call site.
+    var isAvailable: Bool {
+        availability == .available
+    }
+
     /// Streams a summary; each yielded String is the cumulative response so far.
     func summarize(
         title: String,

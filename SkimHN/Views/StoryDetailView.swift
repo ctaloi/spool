@@ -149,8 +149,10 @@ struct StoryDetailView: View {
             ShareOptionsView(
                 title: viewModel.story.title ?? "",
                 url: viewModel.story.url.flatMap(URL.init(string:)),
-                articleSummary: shareableArticleSummary,
-                threadDigest: shareableThreadDigest
+                article: summary,
+                thread: commentsSummary,
+                buildTranscript: { viewModel.commentsTranscript() },
+                hasComments: !viewModel.comments.isEmpty
             )
         }
         .sheet(item: Binding(
@@ -368,34 +370,6 @@ struct StoryDetailView: View {
             text = text.replacingOccurrences(of: k, with: v)
         }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Best-effort OG image fetch for the article hero. Errors are
-    /// swallowed — we just render no banner if the page has no
-    /// `og:image` or the network refuses. Also pulls the dominant
-    /// color out of the image so we can tint the skeleton/gradient.
-    /// The AI article summary in shareable form — present only after a
-    /// successful generation, or when a saved-story prefetch has
-    /// cached one. Returns nil otherwise so the Share sheet's toggle
-    /// stays disabled.
-    private var shareableArticleSummary: String? {
-        if case .done = summary.state, !summary.text.isEmpty {
-            return summary.text
-        }
-        if let saved = savedStories.first(where: { $0.id == viewModel.story.id }),
-           let cached = saved.cachedSummaryText, !cached.isEmpty {
-            return cached
-        }
-        return nil
-    }
-
-    /// Same for the comment-thread digest. Only available once the
-    /// digest has streamed to .done.
-    private var shareableThreadDigest: String? {
-        if case .done = commentsSummary.state, !commentsSummary.text.isEmpty {
-            return commentsSummary.text
-        }
-        return nil
     }
 
     /// Adopt the saved record's pre-generated summary if it's available

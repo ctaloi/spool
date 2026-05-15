@@ -24,20 +24,27 @@ struct UnifiedSummaryCardView: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        GroupBox {
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            HStack(spacing: 8) {
-                Label("Summary", systemImage: "sparkles")
-                    .foregroundStyle(Theme.accent)
-                    .symbolEffect(
-                        .pulse,
-                        options: .repeating,
-                        isActive: isStreaming
-                    )
-                Spacer()
-                statusBadge
+        // Hide the entire card on devices / configurations where the
+        // on-device model isn't available. Users on older hardware
+        // or with Apple Intelligence disabled shouldn't see a card
+        // they can never use. Settings explains what's happening
+        // for the disabled / downloading cases.
+        if SummaryService.shared.isAvailable {
+            GroupBox {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                HStack(spacing: 8) {
+                    Label("Summary", systemImage: "sparkles")
+                        .foregroundStyle(Theme.accent)
+                        .symbolEffect(
+                            .pulse,
+                            options: .repeating,
+                            isActive: isStreaming
+                        )
+                    Spacer()
+                    statusBadge
+                }
             }
         }
     }

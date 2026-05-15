@@ -462,20 +462,28 @@ struct StoryListView: View {
                 .selectionDisabled()
         }
 
-        if showDigest, feedSource == .category(.top) {
-            DigestCardView(viewModel: digest, onDismiss: dismissDigest)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
-                .selectionDisabled()
-                .transition(.opacity.combined(with: .move(edge: .top)))
-        } else if feedSource == .category(.top),
-                  !viewModel.stories.isEmpty,
-                  digest.canRun {
-            digestRecallPill
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
-                .selectionDisabled()
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        // Digest is AI-driven — only ever render on devices where
+        // the model is actually available. digest.canRun checks the
+        // same SummaryService.availability under the hood, so the
+        // pill case is implicitly gated; the card case needs an
+        // explicit gate so users without AI never see it auto-fire
+        // when they land on Top.
+        if SummaryService.shared.isAvailable {
+            if showDigest, feedSource == .category(.top) {
+                DigestCardView(viewModel: digest, onDismiss: dismissDigest)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
+                    .selectionDisabled()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if feedSource == .category(.top),
+                      !viewModel.stories.isEmpty,
+                      digest.canRun {
+                digestRecallPill
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
+                    .selectionDisabled()
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
         }
 
         if let message = viewModel.errorMessage, viewModel.stories.isEmpty {

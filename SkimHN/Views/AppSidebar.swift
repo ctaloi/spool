@@ -14,6 +14,7 @@ struct AppSidebar: View {
     @Query private var followedUsers: [FollowedUser]
     @State private var profileTarget: String?
     @State private var showAbout: Bool = false
+    @Environment(\.openURL) private var openURL
     @AppStorage(SettingsKeys.showThumbnails) private var showThumbnails: Bool = true
     @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
     @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
@@ -249,10 +250,58 @@ struct AppSidebar: View {
             }
             .tint(Theme.accent)
 
+            appleIntelligenceStatusRow
+
             if auth.isLoggedIn {
                 mentionNotificationTestRow
                 mentionBGRefreshTestRow
             }
+        }
+    }
+
+    /// Surfaces Apple Intelligence status only when there's something
+    /// actionable or informative to say. Hidden entirely for users on
+    /// devices that don't support AI at all — no point informing them
+    /// of a feature they can never enable.
+    @ViewBuilder
+    private var appleIntelligenceStatusRow: some View {
+        switch SummaryService.shared.availability {
+        case .available:
+            EmptyView()
+        case .appleIntelligenceDisabled:
+            Button {
+                if let url = URL(string: "App-prefs:Apple Intelligence") {
+                    openURL(url)
+                }
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Enable Apple Intelligence")
+                            .foregroundStyle(.primary)
+                        Text("Turn on in iOS Settings to unlock on-device summaries.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Theme.accent)
+                }
+            }
+        case .modelNotReady:
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Apple Intelligence preparing")
+                        .foregroundStyle(.primary)
+                    Text("Summarize buttons appear once the model finishes downloading.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                ProgressView().controlSize(.small)
+            }
+        case .unsupportedDevice, .other:
+            // Don't tell users about features they can't have.
+            EmptyView()
         }
     }
 
