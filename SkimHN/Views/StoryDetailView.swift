@@ -312,14 +312,17 @@ struct StoryDetailView: View {
                     .environmentObject(auth)
             }
 
-            if let urlString = viewModel.story.url,
-               let url = URL(string: urlString) {
-                SummaryCardView(
-                    viewModel: summary,
-                    title: viewModel.story.title ?? "",
-                    url: url
-                )
-            }
+            // Unified Article + Discussion summary card — replaces the
+            // old pair of separate cards so the user sees one CTA
+            // instead of two stacked Summarize buttons.
+            UnifiedSummaryCardView(
+                article: summary,
+                thread: commentsSummary,
+                title: viewModel.story.title ?? "",
+                articleURL: viewModel.story.url.flatMap(URL.init(string:)),
+                buildTranscript: { viewModel.commentsTranscript() },
+                hasComments: !viewModel.comments.isEmpty
+            )
 
             HStack(spacing: 12) {
                 VoteButton(
@@ -538,12 +541,9 @@ struct StoryDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 24)
         } else {
-            CommentsSummaryCardView(
-                viewModel: commentsSummary,
-                title: viewModel.story.title ?? "",
-                transcript: { viewModel.commentsTranscript() }
-            )
-            .padding(.bottom, 12)
+            // The Discussion section now lives inside the unified
+            // summary card in the header — no standalone digest card
+            // here anymore.
 
             // LazyVStack — only the visible comment window renders, so
             // big threads (500+) scroll smoothly instead of freezing on
