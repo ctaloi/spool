@@ -27,6 +27,7 @@ targets:
       - path: SkimHN
     dependencies:
       - target: SkimHNShareExtension
+      - target: SkimHNWidget
     # Manual Info.plist. We used to lean on GENERATE_INFOPLIST_FILE +
     # INFOPLIST_KEY_ settings, but the Xcode 17 / iOS 26 SDK doesn't
     # recognize INFOPLIST_KEY_UIBackgroundModes or
@@ -86,6 +87,27 @@ targets:
         # rather than letting GENERATE_INFOPLIST_FILE produce one.
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: SkimHNShareExtension/Info.plist
+
+  SkimHNWidget:
+    type: app-extension
+    platform: iOS
+    # Widget views need: WidgetKit's own files, plus the HN API +
+    # HNItem model from the main app. Each shared file gets compiled
+    # into both targets — that's fine because HNAPI is an actor with
+    # no static state and HNItem is a stateless value type.
+    sources:
+      - path: SkimHNWidget
+      - path: SkimHN/Networking/HNAPI.swift
+      - path: SkimHN/Models/HNItem.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN.Widget
+        PRODUCT_NAME: SkimHNWidget
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: SkimHNWidget/Info.plist
+        # WidgetKit / SwiftUI link automatically via Swift's import
+        # mechanism. No extra LD_RUNPATH_SEARCH_PATHS needed beyond
+        # the @executable_path default.
 
 schemes:
   SkimHN:
