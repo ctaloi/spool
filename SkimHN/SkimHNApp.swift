@@ -57,7 +57,7 @@ struct SkimHNApp: App {
             await MentionsNotifier.runMentionsCheckAndNotify(
                 username: await HNAuthService.shared.currentUser
             )
-            await MentionsNotifier.scheduleNextRefresh()
+            MentionsNotifier.scheduleNextRefresh()
         }
         .onChange(of: scenePhase) { _, phase in
             // The earliest window iOS will run our refresh in starts

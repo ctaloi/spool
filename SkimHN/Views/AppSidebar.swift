@@ -19,17 +19,17 @@ struct AppSidebar: View {
     @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
 
     /// One-shot result UI for the "Send Test Notification" row.
-    /// Resets to .idle on dismiss; sticks otherwise so the user can
-    /// confirm what happened.
+    /// Auto-resets to .idle ~6 seconds after a successful schedule
+    /// (just past the 5s trigger) so the checkmark doesn't linger
+    /// forever.
     enum NotifierStatus: Equatable {
         case idle
         case scheduled
         case denied(String)
     }
     @State private var notifierStatus: NotifierStatus = .idle
-    /// Count of notifications fired by the last "Test BG Refresh"
-    /// tap — nil before first tap, 0 when there was nothing new.
-    @State private var bgRefreshResult: Int?
+    /// Last "Test BG Refresh" outcome. nil before first tap.
+    @State private var bgRefreshOutcome: MentionsNotifier.CheckOutcome?
 
     let onSignIn: () -> Void
     let onSignOut: () -> Void
@@ -266,6 +266,13 @@ struct AppSidebar: View {
                 do {
                     try await MentionsNotifier.sendTestNotification()
                     notifierStatus = .scheduled
+                    // Clear the indicator a beat after the trigger
+                    // fires so the row doesn't keep claiming
+                    // "scheduled" hours later.
+                    try? await Task.sleep(for: .seconds(6))
+                    if notifierStatus == .scheduled {
+                        notifierStatus = .idle
+                    }
                 } catch {
                     notifierStatus = .denied(error.localizedDescription)
                 }
@@ -292,8 +299,9 @@ struct AppSidebar: View {
     private var mentionBGRefreshTestRow: some View {
         Button {
             Task {
-                let fired = await MentionsNotifier.runMentionsCheckAndNotify(username: auth.username)
-                bgRefreshResult = fired
+                bgRefreshOutcome = await MentionsNotifier.runMentionsCheckAndNotify(
+                    username: auth.username
+                )
             }
         } label: {
             Label {
@@ -301,11 +309,7 @@ struct AppSidebar: View {
                     Text("Test BG Refresh Now")
                         .foregroundStyle(.primary)
                     Spacer()
-                    if let count = bgRefreshResult {
-                        Text(count == 0 ? "No new mentions" : "\(count) fired")
-                            .font(.footnote.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
+                    bgRefreshTrailing
                 }
             } icon: {
                 Image(systemName: "arrow.clockwise.circle")
@@ -329,6 +333,34 @@ struct AppSidebar: View {
                 .foregroundStyle(.red)
                 .lineLimit(2)
                 .truncationMode(.tail)
+        }
+    }
+
+    @ViewBuilder
+    private var bgRefreshTrailing: some View {
+        switch bgRefreshOutcome {
+        case .none:
+            EmptyView()
+        case .noUsername:
+            Text("Sign in first")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        case .notificationsDenied:
+            Text("Notifications off")
+                .font(.footnote)
+                .foregroundStyle(.red)
+        case .failed:
+            Text("Failed")
+                .font(.footnote)
+                .foregroundStyle(.red)
+        case .skippedFirstRun(let seeded):
+            Text("Seeded \(seeded)")
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.secondary)
+        case .fired(let count):
+            Text(count == 0 ? "No new mentions" : "\(count) fired")
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
     }
 

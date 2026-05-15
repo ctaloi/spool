@@ -12,7 +12,11 @@ import BackgroundTasks
 ///   local notification for this reply"; prevents the BG handler
 ///   from double-notifying after the user has already seen the
 ///   reply in-app or after a previous BG run already alerted.
-@MainActor
+///
+/// Intentionally `nonisolated` — the methods touch the network and
+/// `UNUserNotificationCenter` only, never UI state. Forcing every
+/// call to hop to the main actor would waste actor switches in the
+/// hot BG path and could deadlock if main is busy.
 enum MentionsNotifier {
     /// The single identifier registered in
     /// `BGTaskSchedulerPermittedIdentifiers`. Changing this requires
@@ -75,30 +79,62 @@ enum MentionsNotifier {
         try await UNUserNotificationCenter.current().add(request)
     }
 
+    /// Outcome of one check-and-notify pass. Lets the UI distinguish
+    /// "no username" from "no new mentions" so the test button can
+    /// say something meaningful in both cases.
+    enum CheckOutcome {
+        case noUsername
+        case notificationsDenied
+        case fired(count: Int)
+        case skippedFirstRun(seeded: Int)
+        case failed
+    }
+
     /// Run the same pipeline the BG task runs — fetch fresh mentions
     /// for the signed-in user and post a notification for every
-    /// reply we haven't notified about yet. Returns the count of new
-    /// notifications fired so the caller can show a confirmation.
+    /// reply we haven't notified about yet.
+    ///
+    /// Special case: the FIRST time this is ever called for a given
+    /// install / user, we seed `NotifiedMentionStore` with every
+    /// currently-visible reply ID instead of notifying. Without that
+    /// pre-seed, every existing reply in the user's history would
+    /// fire a notification on first run — a one-time flood of dozens
+    /// to hundreds of notifications. We treat day-one as "we missed
+    /// the live window for all of these, just remember them."
     @discardableResult
-    static func runMentionsCheckAndNotify(username: String?) async -> Int {
-        guard let username, !username.isEmpty else { return 0 }
-        guard await requestAuthorizationIfNeeded() else { return 0 }
+    static func runMentionsCheckAndNotify(username: String?) async -> CheckOutcome {
+        guard let username, !username.isEmpty else { return .noUsername }
+        guard await requestAuthorizationIfNeeded() else { return .notificationsDenied }
         guard let records = try? await HNMentionsService.shared.fetchMentions(for: username) else {
-            return 0
+            return .failed
         }
+
+        // First-run guard. Set the bookmark BEFORE seeding so a crash
+        // mid-seed doesn't make us re-flood on the next try.
+        if !NotifiedMentionStore.firstRunCompleted {
+            NotifiedMentionStore.firstRunCompleted = true
+            for record in records {
+                NotifiedMentionStore.record(record.reply.id)
+            }
+            return .skippedFirstRun(seeded: records.count)
+        }
+
         var fired = 0
         for record in records where !NotifiedMentionStore.contains(record.reply.id) {
+            // iOS gives BG tasks ~30 seconds. If we're being killed
+            // mid-loop, stop firing more notifications and let the
+            // next run pick up where we left off.
+            if Task.isCancelled { break }
             do {
                 try await postMentionNotification(for: record)
                 NotifiedMentionStore.record(record.reply.id)
                 fired += 1
             } catch {
-                // Skip but keep trying the rest — one failed post
-                // shouldn't tank the batch.
+                // One failed post shouldn't tank the batch — keep going.
                 continue
             }
         }
-        return fired
+        return .fired(count: fired)
     }
 
     // MARK: - Background task scheduling
@@ -143,8 +179,6 @@ enum MentionsNotifier {
     /// screen.
     private static func previewBody(from text: String?) -> String {
         guard let raw = text, !raw.isEmpty else { return "(no text)" }
-        // Cheap HTML strip — drops tags + decodes the most common
-        // entities. Good enough for a notification preview.
         var stripped = raw.replacingOccurrences(
             of: "<[^>]+>",
             with: "",
@@ -177,8 +211,16 @@ enum MentionsNotifier {
 /// Set-membership store for "reply IDs we have already notified
 /// about", backed by UserDefaults so it's reachable from the
 /// background task without standing up a SwiftData container.
+///
+/// Caps to the most recent `capacity` IDs to prevent unbounded
+/// growth — without the cap, a long-tenured user's store would
+/// balloon over months. HN IDs are monotonically increasing, so
+/// dropping the smallest IDs == dropping the oldest replies, which
+/// are the least likely to receive new notification activity.
 enum NotifiedMentionStore {
     private static let key = "mentions.notifiedReplyIDs"
+    private static let firstRunKey = "mentions.firstRunCompleted"
+    private static let capacity = 500
 
     static var all: Set<Int> {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -194,8 +236,22 @@ enum NotifiedMentionStore {
     static func record(_ id: Int) {
         var current = all
         current.insert(id)
+        if current.count > capacity {
+            // Drop the oldest (smallest) IDs in bulk. HN item IDs
+            // are monotonic, so sort + suffix is the cheap path.
+            let trimmed = Array(current).sorted().suffix(capacity)
+            current = Set(trimmed)
+        }
         if let data = try? JSONEncoder().encode(current) {
             UserDefaults.standard.set(data, forKey: key)
         }
+    }
+
+    /// Whether we've ever run the check-and-notify pipeline before.
+    /// Drives the first-run "seed, don't notify" path so the user
+    /// isn't flooded by every existing reply on day one.
+    static var firstRunCompleted: Bool {
+        get { UserDefaults.standard.bool(forKey: firstRunKey) }
+        set { UserDefaults.standard.set(newValue, forKey: firstRunKey) }
     }
 }
