@@ -54,7 +54,16 @@ final class StoryListViewModel: ObservableObject {
     func loadMoreIfNeeded(current: HNItem) async {
         guard let index = stories.firstIndex(of: current) else { return }
         let threshold = stories.count - 5
-        guard index >= threshold, stories.count < allIDs.count else { return }
+        guard index >= threshold else { return }
+        await loadMore()
+    }
+
+    /// Unconditional next-page load. Used by the bottom-of-list
+    /// auto-pagination spinner — its visibility itself is the
+    /// "should we load" signal, and we want to keep firing through
+    /// filtered batches that pass nothing through the row gate.
+    func loadMore() async {
+        guard stories.count < allIDs.count else { return }
         let nextSlice = Array(allIDs[stories.count..<min(stories.count + pageSize, allIDs.count)])
         do {
             let more = try await HNAPI.shared.items(ids: nextSlice)

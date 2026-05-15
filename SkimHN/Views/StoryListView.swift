@@ -496,18 +496,41 @@ struct StoryListView: View {
                 LoadingStateView(text: "Loading \(viewModel.feed.title.lowercased())…")
             }
         } else {
-            ForEach(filteredRanked(viewModel.stories), id: \.1.id) { rank, story in
+            let filtered = filteredRanked(viewModel.stories)
+            let hasMore = viewModel.stories.count < viewModel.totalAvailable
+
+            ForEach(filtered, id: \.1.id) { rank, story in
                 storyRow(rank: rank, story: story)
                     .task { await viewModel.loadMoreIfNeeded(current: story) }
             }
 
-            if viewModel.stories.count < viewModel.totalAvailable {
+            if hasMore {
+                // Auto-pagination sentinel. Two responsibilities:
+                // 1. Re-fire as a `.task(id: ...)` whenever the
+                //    backing story count changes so we chain
+                //    through filtered batches that pass nothing.
+                // 2. Render as a spinner so the user sees we're
+                //    still working when their filter is aggressive.
                 HStack {
                     Spacer()
-                    ProgressView()
+                    ProgressView().tint(Theme.accent)
                     Spacer()
                 }
                 .listRowSeparator(.hidden)
+                .task(id: viewModel.stories.count) {
+                    await viewModel.loadMore()
+                }
+            } else if filtered.isEmpty {
+                // We've fetched every available story and the filter
+                // still passes nothing. Surface an actionable empty
+                // state instead of leaving a blank list.
+                statusRow {
+                    ContentUnavailableView {
+                        Label("No stories match your filter", systemImage: "line.3.horizontal.decrease.circle")
+                    } description: {
+                        Text("Loosen the minimum-comments threshold or turn off Hide Read in Settings.")
+                    }
+                }
             }
         }
     }
@@ -574,17 +597,35 @@ struct StoryListView: View {
                 )
             }
         } else {
-            ForEach(filteredRanked(browse.results), id: \.1.id) { rank, story in
+            let filtered = filteredRanked(browse.results)
+
+            ForEach(filtered, id: \.1.id) { rank, story in
                 storyRow(rank: rank, story: story)
                     .task { await browse.loadMoreIfNeeded(current: story) }
             }
-            if browse.isLoading && !browse.results.isEmpty {
+
+            if browse.hasMore {
+                // Same auto-pagination pattern as the category feed —
+                // .task(id: count) re-fires each time results grow,
+                // so an aggressive filter keeps fetching until the
+                // page list is exhausted.
                 HStack {
                     Spacer()
                     ProgressView().tint(Theme.accent)
                     Spacer()
                 }
                 .listRowSeparator(.hidden)
+                .task(id: browse.results.count) {
+                    await browse.loadMore()
+                }
+            } else if filtered.isEmpty {
+                statusRow {
+                    ContentUnavailableView {
+                        Label("No stories match your filter", systemImage: "line.3.horizontal.decrease.circle")
+                    } description: {
+                        Text("Loosen the minimum-comments threshold or turn off Hide Read in Settings.")
+                    }
+                }
             }
         }
     }

@@ -24,7 +24,10 @@ final class AlgoliaFeedViewModel: ObservableObject {
     var kind: AlgoliaFeedKind
     private(set) var query: String = ""
     private var currentPage: Int = 0
-    private var hasMore: Bool = false
+    /// Whether the most recent page reported more pages available.
+    /// Exposed so the view can render an auto-pagination sentinel
+    /// even before `isLoading` flips for the next batch.
+    @Published private(set) var hasMore: Bool = false
     private var pendingTask: Task<Void, Never>?
 
     init(kind: AlgoliaFeedKind = .search(query: "", sort: .relevance)) {
@@ -68,6 +71,15 @@ final class AlgoliaFeedViewModel: ObservableObject {
         guard hasMore, !isLoading,
               let index = results.firstIndex(of: current),
               index >= results.count - 5 else { return }
+        await run(reset: false)
+    }
+
+    /// Unconditional next-page load. Used by the bottom-of-list
+    /// auto-pagination spinner — its visibility itself signals
+    /// "fetch more", and we want to chain through filtered batches
+    /// that pass nothing through the row gate.
+    func loadMore() async {
+        guard hasMore, !isLoading else { return }
         await run(reset: false)
     }
 
