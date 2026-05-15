@@ -152,10 +152,7 @@ struct UnifiedSummaryCardView: View {
                     articleSection
                 }
                 if articleHasResult && threadHasResult, canRunArticle, canRunThread {
-                    Rectangle()
-                        .fill(Color(.separator).opacity(0.5))
-                        .frame(height: 0.5)
-                        .padding(.vertical, 2)
+                    SummarySectionDivider()
                 }
                 if threadHasResult, canRunThread {
                     threadSection
@@ -205,12 +202,16 @@ struct UnifiedSummaryCardView: View {
             if article.text.isEmpty {
                 SummaryPlaceholderLines()
             } else {
-                Text(article.text)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(.primary)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Render markdown live so the user never sees raw
+                // **asterisks** mid-stream; without this, the prose
+                // jolts from raw markup to formatted output the moment
+                // we flip to .done. StreamingDots gives a subtle "still
+                // typing" tail at the bottom.
+                VStack(alignment: .leading, spacing: 10) {
+                    MarkdownText(text: article.text)
+                    StreamingDots()
+                        .padding(.top, 2)
+                }
             }
         case .done:
             MarkdownText(text: article.text)
@@ -263,12 +264,15 @@ struct UnifiedSummaryCardView: View {
             if thread.text.isEmpty {
                 SummaryPlaceholderLines()
             } else {
-                Text(thread.text)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(.primary)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // Same live-markdown rendering as the article side —
+                // discussion summaries lean on **Sentiment:** /
+                // **Themes** patterns that look like literal noise in
+                // plain Text.
+                VStack(alignment: .leading, spacing: 10) {
+                    MarkdownText(text: thread.text)
+                    StreamingDots()
+                        .padding(.top, 2)
+                }
             }
         case .done:
             MarkdownText(text: thread.text)
