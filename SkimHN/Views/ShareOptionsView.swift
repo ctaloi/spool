@@ -60,15 +60,27 @@ struct ShareOptionsView: View {
                 }
 
                 Section {
-                    if let payload = sharePayload {
+                    // Two distinct ShareLink shapes — pass a real URL
+                    // when only the URL is selected so Messages can
+                    // render a rich link preview, otherwise pass the
+                    // composed String so Notes / Mail get the full
+                    // payload. Never combine the two; an incorrect URL
+                    // representation falling through to text targets
+                    // would land "about:blank" in pasted content.
+                    if let url, onlyURLSelected {
                         ShareLink(
-                            item: payload,
+                            item: url,
                             preview: SharePreview(title)
                         ) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
-                                .foregroundStyle(.white)
-                                .padding(.vertical, 4)
+                            shareButtonLabel
+                        }
+                        .listRowBackground(Theme.accent)
+                    } else if let composedText, !composedText.isEmpty {
+                        ShareLink(
+                            item: composedText,
+                            preview: SharePreview(title)
+                        ) {
+                            shareButtonLabel
                         }
                         .listRowBackground(Theme.accent)
                     } else {
@@ -120,37 +132,17 @@ struct ShareOptionsView: View {
         return pieces.joined(separator: "\n\n")
     }
 
-    /// What we actually hand to ShareLink. When the user shares only
-    /// the URL, pass the URL itself so apps like Messages render a
-    /// rich link preview. When they share with extra context, pass a
-    /// composed String — recipients see the full payload pasted in.
-    private var sharePayload: SharePayload? {
-        guard let composedText, !composedText.isEmpty else { return nil }
-        let onlyURLSelected = includeURL && !includeArticleSummary && !includeThreadDigest
-        if onlyURLSelected, let url {
-            return .url(url)
-        }
-        return .text(composedText)
+    /// True when the user has the URL toggle on and nothing else —
+    /// the case where we should hand a real URL to ShareLink so
+    /// Messages renders a rich link preview.
+    private var onlyURLSelected: Bool {
+        includeURL && !includeArticleSummary && !includeThreadDigest
     }
-}
 
-/// Two-case Transferable wrapper so ShareLink can hand either a URL
-/// or a composed String to the system share sheet, depending on what
-/// the user toggled.
-private enum SharePayload: Transferable {
-    case url(URL)
-    case text(String)
-
-    static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation { (payload: SharePayload) -> URL in
-            if case .url(let url) = payload { return url }
-            return URL(string: "about:blank")!
-        }
-        ProxyRepresentation { (payload: SharePayload) -> String in
-            switch payload {
-            case .url(let url): return url.absoluteString
-            case .text(let text): return text
-            }
-        }
+    private var shareButtonLabel: some View {
+        Label("Share", systemImage: "square.and.arrow.up")
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(.white)
+            .padding(.vertical, 4)
     }
 }

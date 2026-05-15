@@ -92,15 +92,43 @@ struct UnifiedSummaryCardView: View {
         hasComments
     }
 
+    /// A runnable section is one we COULD summarize but haven't yet.
+    /// E.g., a saved story with a cached article summary but no
+    /// thread summary has `runnableThread = true` even though
+    /// `hasAnyResult` is also true.
+    private var runnableArticleIdle: Bool {
+        guard canRunArticle else { return false }
+        if case .idle = article.state { return true }
+        return false
+    }
+
+    private var runnableThreadIdle: Bool {
+        guard canRunThread else { return false }
+        if case .idle = thread.state { return true }
+        return false
+    }
+
+    private var anyRunnableIdle: Bool {
+        runnableArticleIdle || runnableThreadIdle
+    }
+
     @ViewBuilder
     private var statusBadge: some View {
-        if !hasAnyResult {
+        if isStreaming {
+            // Pulsing sparkles in the header carry the signal — no
+            // extra badge while content is streaming.
+            EmptyView()
+        } else if anyRunnableIdle {
+            // Either fresh (nothing run) or partial (cached article,
+            // thread not yet). Show "Summarize" — runs only the idle
+            // sections, doesn't re-do the cached one.
             OutlineActionButton(title: "Summarize", systemImage: "sparkles") {
-                runAll()
+                runIdleSections()
             }
-            .disabled(!canSummarize || (!canRunArticle && !canRunThread))
-        } else if !isStreaming {
-            // Both done (or errored) — show a refresh.
+            .disabled(!canSummarize)
+        } else if hasAnyResult {
+            // Everything that can be summarized has been. Refresh
+            // explicitly re-runs the lot.
             OutlineIconButton(
                 systemImage: "arrow.clockwise",
                 accessibilityLabel: "Summarize Again"
@@ -108,8 +136,6 @@ struct UnifiedSummaryCardView: View {
                 runAll()
             }
         } else {
-            // Streaming — the pulsing sparkles in the header carry
-            // the signal; no extra badge here keeps it calm.
             EmptyView()
         }
     }
@@ -279,9 +305,20 @@ struct UnifiedSummaryCardView: View {
 
     // MARK: - Actions
 
+    /// Re-run every section that has any result (and could run).
+    /// Wired to the refresh icon when everything's been summarized.
     private func runAll() {
         runArticle()
         runThread()
+    }
+
+    /// Run only the sections still in `.idle`. Wired to the
+    /// Summarize button so cached / already-streaming sections don't
+    /// get clobbered when the user wants to fill in the missing
+    /// side.
+    private func runIdleSections() {
+        if runnableArticleIdle { runArticle() }
+        if runnableThreadIdle { runThread() }
     }
 
     private func runArticle() {
