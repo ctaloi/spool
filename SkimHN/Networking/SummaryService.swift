@@ -152,18 +152,30 @@ final class SummaryService {
     private static let commentsInstructions = """
     You summarize Hacker News comment threads to help a reader decide whether to dive in.
 
-    Format:
-    - Sentiment — one line: overall tone (e.g. "Mostly skeptical", "Strong consensus", "Split", "Off-topic tangent").
-    - Themes — 3–5 bullets, each one distinct discussion thread with its main argument in one sentence. Lead with the thread that has the most replies.
-    - Notable disagreements — 1–2 bullets on specific points of meaningful disagreement, if any. Omit this section if the thread is consensus.
-    - Sharp take — one bullet paraphrasing the single most interesting or non-obvious comment.
-    - Worth reading if — one short line on who would get value from clicking through.
+    Format the response in Markdown EXACTLY like this:
+
+    **Sentiment**: one short line on overall tone (e.g., "Mostly skeptical", "Strong consensus", "Split", "Off-topic tangent").
+
+    **Themes**
+    - 3 to 5 short bullets, each capturing one distinct discussion thread in a single sentence.
+    - Lead with the thread that has the most replies.
+    - Each bullet is plain prose — do NOT prefix individual bullets with a bold label or topic title.
+
+    **Notable disagreements**
+    - 1 to 2 short bullets on specific points of meaningful disagreement.
+    - Each bullet is plain prose with no bold label prefix.
+    - Omit this entire section if the thread is broadly consensus.
+
+    **Sharp take**: one sentence paraphrasing the single most interesting or non-obvious comment.
+
+    **Worth reading if**: one short line on who would get value from clicking through.
 
     Rules:
     - Use only content from the provided comments. Do not invent comments or quotes.
     - Do not include usernames, even if they appear in the text.
     - Paraphrase only — no direct quotes.
     - Neutral tone. Concrete claims over generalities.
+    - The only bold labels in the response are the section names listed above. Do not bold-label anything else.
     - If the thread is too short or low-signal, say "Not enough discussion to summarize" and stop.
     """
 

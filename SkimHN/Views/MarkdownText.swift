@@ -157,19 +157,18 @@ struct MarkdownText: View {
 
             if let bulletContent = parseBullet(line) {
                 flushParagraph()
-                // The summary prompts emit section markers as top-level
-                // bullets like "- **Sentiment** — Mostly skeptical".
-                // Promote those to a heading + inline body so the rendered
-                // output has real section breaks, not bullets posing as
-                // labels.
-                if let (label, body) = Self.splitSectionLabel(bulletContent) {
-                    result.append(.heading(level: 3, content: label))
-                    if !body.isEmpty {
-                        result.append(.paragraph(body))
-                    }
-                } else {
-                    result.append(.bullet(bulletContent))
-                }
+                // Bullets stay bullets. Inline bold inside a bullet
+                // is rendered as bold via AttributedString markdown
+                // parsing — we deliberately do NOT promote
+                // "- **Label**: body" to a heading + paragraph here.
+                // Doing so used to produce a forest of orange
+                // eyebrows when a "Themes" section had bullets like
+                // "- **Drawers**: A macOS app for…" — each bullet
+                // turned into its own loud uppercase heading. Section
+                // structure now comes exclusively from paragraph-
+                // level **Section**: prefixes (handled in
+                // flushParagraph).
+                result.append(.bullet(bulletContent))
                 continue
             }
 
