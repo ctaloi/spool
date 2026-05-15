@@ -1,5 +1,11 @@
 import SwiftUI
 
+/// NSCache requires class types; AttributedString is a struct, so box it.
+private final class BoxedAttributed {
+    let value: AttributedString
+    init(_ value: AttributedString) { self.value = value }
+}
+
 /// Renders HN's HTML comments/text. Earlier versions used
 /// `NSAttributedString(data:options:[.documentType: .html]:…)`, which is
 /// WebKit-backed and notorious for release-time crashes when many
@@ -23,15 +29,39 @@ struct HTMLText: View {
     }
 
     private var rendered: AttributedString {
-        let markdown = Self.markdown(from: html)
-        if let attr = try? AttributedString(
+        Self.attributedString(for: html)
+    }
+
+    /// Memoized HTML → AttributedString conversion. SwiftUI calls `body`
+    /// frequently (layout, scrolling, theme changes); without a cache,
+    /// every visible comment re-parses its full HTML chain per layout
+    /// pass — which is what made the comment thread stutter on long
+    /// stories. Bounded NSCache so it self-evicts under pressure.
+    private static func attributedString(for html: String) -> AttributedString {
+        let key = html as NSString
+        if let cached = renderCache.object(forKey: key) {
+            return cached.value
+        }
+        let markdown = markdown(from: html)
+        let attr: AttributedString
+        if let parsed = try? AttributedString(
             markdown: markdown,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         ) {
-            return attr
+            attr = parsed
+        } else {
+            attr = AttributedString(markdown)
         }
-        return AttributedString(markdown)
+        renderCache.setObject(BoxedAttributed(attr), forKey: key, cost: html.utf8.count)
+        return attr
     }
+
+    private static let renderCache: NSCache<NSString, BoxedAttributed> = {
+        let c = NSCache<NSString, BoxedAttributed>()
+        c.countLimit = 2_000
+        c.totalCostLimit = 8 * 1024 * 1024 // ~8 MB of comment HTML keys
+        return c
+    }()
 
     // MARK: - HTML → Markdown
 

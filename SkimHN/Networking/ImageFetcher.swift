@@ -37,7 +37,12 @@ actor ImageFetcher {
             return hit
         }
         if let existing = inFlight[url] {
-            return try await existing.result.get()
+            // Split the suspension explicitly — `Task.result` IS async,
+            // but SourceKit's flow analysis through `try await x.result.get()`
+            // mis-reports "no async operations within await." Storing the
+            // awaited Result first makes the suspension unambiguous.
+            let result = await existing.result
+            return try result.get()
         }
         let task = Task<UIImage, Error> {
             defer { Task { await self.clearInFlight(url) } }

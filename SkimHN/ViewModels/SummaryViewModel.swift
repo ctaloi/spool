@@ -21,17 +21,32 @@ final class SummaryViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    /// The text the view actually renders. Driven by a steady-cadence
+    /// drain ticker, not by the raw model stream — so the UI sees text
+    /// arrive at a consistent reading pace even when Foundation Models
+    /// bursts a paragraph at once or stalls for half a second.
     @Published private(set) var text: String = ""
 
     private var task: Task<Void, Never>?
-    /// Holds the latest cumulative text from the model. The view only
-    /// sees it after `flushInterval` has elapsed since the last commit
-    /// — so we never republish faster than the UI can comfortably
-    /// re-render. Foundation Models can burst many tokens per second
-    /// and re-parsing markdown on every token caused visible chop.
-    private var streamingBuffer: String?
-    private var flushScheduled: Bool = false
-    private let flushInterval: Duration = .milliseconds(80)
+    private var drainTask: Task<Void, Never>?
+    /// Latest cumulative text from the model. The drain ticker pulls
+    /// from here into `text` one word at a time. Not published — the
+    /// view only cares about `text`. Stored in a plain var because the
+    /// drain task reads it on the main actor anyway.
+    private var fullText: String = ""
+    /// Set when the upstream stream completes (success path). The drain
+    /// loop uses this to decide when to flip to `.done`.
+    private var streamFinished: Bool = false
+
+    /// Steady cadence between word reveals during the drain. ~25 words/
+    /// second — feels like a writer pacing themselves, not a typewriter.
+    private let baseWordInterval: Duration = .milliseconds(40)
+    /// Compressed cadence when the buffer is way ahead — keeps us from
+    /// holding stale text for seconds after the model finishes a big run.
+    private let fastWordInterval: Duration = .milliseconds(15)
+    /// Backlog (chars not yet displayed) above which we kick into the
+    /// fast cadence.
+    private let fastDrainBacklog: Int = 150
 
     var availability: SummaryAvailability { SummaryService.shared.availability }
 
@@ -43,6 +58,8 @@ final class SummaryViewModel: ObservableObject {
     func summarize(title: String, url: URL) {
         cancel()
         text = ""
+        fullText = ""
+        streamFinished = false
         state = .fetching
 
         task = Task { [weak self] in
@@ -67,26 +84,23 @@ final class SummaryViewModel: ObservableObject {
                     }
 
                     self.text = ""
-                    self.streamingBuffer = nil
+                    self.fullText = ""
+                    self.streamFinished = false
                     self.state = .streaming
+                    self.startDrain()
                     let stream = SummaryService.shared.summarize(
                         title: title,
                         articleText: article
                     )
                     for try await partial in stream {
                         if Task.isCancelled { return }
-                        self.streamingBuffer = partial
-                        self.scheduleFlush()
-                    }
-                    // Final flush — guarantees the tail of the response
-                    // lands in the UI even if the last token arrived
-                    // during a throttle window.
-                    if !Task.isCancelled, let final = self.streamingBuffer {
-                        self.text = final
-                        self.streamingBuffer = nil
+                        self.fullText = partial
                     }
                     if !Task.isCancelled {
-                        self.state = .done
+                        // Mark the stream done — drain loop will flip
+                        // state to .done once the visible cursor catches
+                        // up with the full buffer.
+                        self.streamFinished = true
                     }
                     return
                 } catch is CancellationError {
@@ -114,6 +128,7 @@ final class SummaryViewModel: ObservableObject {
                             kind: .other
                         )
                     }
+                    self.cancelDrain()
                     return
                 }
             }
@@ -123,24 +138,80 @@ final class SummaryViewModel: ObservableObject {
     func cancel() {
         task?.cancel()
         task = nil
-        streamingBuffer = nil
-        flushScheduled = false
+        cancelDrain()
+        streamFinished = false
+        fullText = ""
     }
 
-    /// Coalesce streamed updates into at most one UI commit per
-    /// `flushInterval`. The first token schedules a flush; further
-    /// tokens just update the buffer until the flush fires and arms a
-    /// new one.
-    private func scheduleFlush() {
-        guard !flushScheduled else { return }
-        flushScheduled = true
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(80))
-            guard let self else { return }
-            self.flushScheduled = false
-            if let buffer = self.streamingBuffer {
-                self.text = buffer
+    /// Drain `fullText` into `text` one word boundary at a time. Runs
+    /// for the duration of the stream and a tail beyond — exits once
+    /// upstream is done and the visible cursor has caught up.
+    private func startDrain() {
+        cancelDrain()
+        drainTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+
+                let full = self.fullText
+                let shownCount = self.text.count
+                let fullCount = full.count
+
+                if shownCount < fullCount {
+                    let nextCount = Self.nextWordBoundary(
+                        in: full,
+                        afterCount: shownCount
+                    )
+                    self.text = String(full.prefix(nextCount))
+
+                    let backlog = fullCount - nextCount
+                    let interval: Duration = backlog > self.fastDrainBacklog
+                        ? self.fastWordInterval
+                        : self.baseWordInterval
+                    try? await Task.sleep(for: interval)
+                } else if self.streamFinished {
+                    // Caught up and upstream is done — snap state to
+                    // .done so the formatted MarkdownText takes over.
+                    self.state = .done
+                    return
+                } else {
+                    // Caught up but model is still working. Idle in
+                    // short hops so we react quickly when more text
+                    // arrives without spinning the CPU.
+                    try? await Task.sleep(for: .milliseconds(30))
+                }
             }
         }
+    }
+
+    private func cancelDrain() {
+        drainTask?.cancel()
+        drainTask = nil
+    }
+
+    /// Advance from `count` characters in to the end of the next
+    /// whitespace-delimited chunk, returning the new character count.
+    /// Consumes a trailing whitespace run so successive reveals don't
+    /// briefly show a word missing its trailing space.
+    private static func nextWordBoundary(in text: String, afterCount count: Int) -> Int {
+        guard count < text.count else { return text.count }
+
+        let start = text.index(text.startIndex, offsetBy: count)
+        var i = start
+        // Skip leading whitespace.
+        while i < text.endIndex, text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        // Consume the word.
+        while i < text.endIndex, !text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        // Consume trailing whitespace so the visible cursor lands on
+        // the start of the next word, not on a dangling space.
+        while i < text.endIndex, text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        let newCount = text.distance(from: text.startIndex, to: i)
+        // Guarantee progress even on degenerate input (all whitespace).
+        return max(newCount, count + 1)
     }
 }

@@ -59,18 +59,9 @@ struct CommentsSummaryCardView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         case .streaming:
-            if viewModel.text.isEmpty {
-                SummaryPlaceholderLines()
-            } else {
-                // Plain text while streaming — see SummaryCardView for
-                // the rationale. Markdown formats in on completion.
-                Text(viewModel.text)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(.primary)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // Plain text while streaming — see SummaryCardView for
+            // the rationale. Markdown formats in on completion.
+            StreamingSummaryText(text: viewModel.text)
         case .done:
             MarkdownText(text: viewModel.text)
                 .textSelection(.enabled)

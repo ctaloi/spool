@@ -70,21 +70,12 @@ struct SummaryCardView: View {
             SummaryPlaceholderLines()
 
         case .streaming:
-            if viewModel.text.isEmpty {
-                SummaryPlaceholderLines()
-            } else {
-                // Plain text during streaming — MarkdownText re-parses the
-                // whole tree per update which thrashes the main thread,
-                // especially with two summaries running side-by-side. The
-                // formatted version takes over the instant the stream
-                // ends, which reads as a nice "snap into place" beat.
-                Text(viewModel.text)
-                    .font(Theme.Typography.body)
-                    .foregroundStyle(.primary)
-                    .lineSpacing(5)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            // Plain text during streaming — MarkdownText re-parses the
+            // whole tree per update which thrashes the main thread,
+            // especially with two summaries running side-by-side. The
+            // formatted version takes over the instant the stream
+            // ends, which reads as a nice "snap into place" beat.
+            StreamingSummaryText(text: viewModel.text)
 
         case .done:
             MarkdownText(text: viewModel.text)
@@ -133,6 +124,60 @@ struct SummaryCardView: View {
         }
     }
 
+}
+
+/// Renders streaming summary text with a soft inline blinking caret at
+/// the trailing edge and a brief skeleton hold so we don't show a lone
+/// half-sentence pop in. Used by both summary cards.
+struct StreamingSummaryText: View {
+    let text: String
+    /// Hold the skeleton until we have enough text to fill out at least
+    /// a sentence-ish — avoids the "one short bullet appears, then the
+    /// card abruptly expands" beat.
+    private let skeletonHoldThreshold: Int = 60
+
+    var body: some View {
+        Group {
+            if text.count < skeletonHoldThreshold {
+                SummaryPlaceholderLines()
+                    .transition(.opacity)
+            } else {
+                bodyText
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: text.count < skeletonHoldThreshold)
+    }
+
+    private var bodyText: some View {
+        // TimelineView drives a soft caret pulse independently of the
+        // viewmodel. ~15Hz is plenty smooth for a 0.95s breathe and
+        // keeps the per-frame Text rebuild cheap. Opacity stays above
+        // ~0.25 so the caret never fully disappears — feels like a
+        // gentle pulse rather than a terminal-style blink.
+        TimelineView(.periodic(from: .now, by: 1.0 / 15.0)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let phase = (sin(t * 2.0 * .pi / 0.95) + 1.0) / 2.0
+            let opacity = 0.25 + 0.65 * phase
+            // Combined AttributedString so the caret flows inline with
+            // wrapped text (an HStack would orphan it on the right of
+            // the last line). Per-run color keeps the caret accent-
+            // tinted while the body stays primary.
+            Text(Self.attributedBody(text: text, caretOpacity: opacity))
+                .font(Theme.Typography.body)
+                .foregroundStyle(.primary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static func attributedBody(text: String, caretOpacity: Double) -> AttributedString {
+        let body = AttributedString(text)
+        var caret = AttributedString(" ▍")
+        caret.foregroundColor = Theme.accent.opacity(caretOpacity)
+        return body + caret
+    }
 }
 
 struct SummaryPlaceholderLines: View {

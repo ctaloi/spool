@@ -60,7 +60,11 @@ actor ArticleFetcher {
             return ArticlePreview(imageURL: URL(string: cached as String))
         }
         if let existing = inFlightPreviews[url] {
-            return try await existing.result.get()
+            // See ImageFetcher: explicit two-step await silences
+            // SourceKit's "no async operations within await" false
+            // positive on `Task.result.get()`.
+            let result = await existing.result
+            return try result.get()
         }
         let task = Task<ArticlePreview, Error> {
             defer { Task { await self.clearPreviewInFlight(url) } }

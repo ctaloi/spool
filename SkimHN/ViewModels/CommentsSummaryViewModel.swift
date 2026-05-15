@@ -16,15 +16,18 @@ final class CommentsSummaryViewModel: ObservableObject {
     }
 
     @Published private(set) var state: State = .idle
+    /// See `SummaryViewModel.text` — display surface for the
+    /// word-by-word drain.
     @Published private(set) var text: String = ""
 
     private var task: Task<Void, Never>?
-    /// Throttles streamed updates — see `SummaryViewModel` for the
-    /// rationale. Same 80ms cadence so both summary cards feel
-    /// consistent.
-    private var streamingBuffer: String?
-    private var flushScheduled: Bool = false
-    private let flushInterval: Duration = .milliseconds(80)
+    private var drainTask: Task<Void, Never>?
+    private var fullText: String = ""
+    private var streamFinished: Bool = false
+
+    private let baseWordInterval: Duration = .milliseconds(40)
+    private let fastWordInterval: Duration = .milliseconds(15)
+    private let fastDrainBacklog: Int = 150
 
     var availability: SummaryAvailability { SummaryService.shared.availability }
 
@@ -42,8 +45,10 @@ final class CommentsSummaryViewModel: ObservableObject {
             return
         }
 
-        streamingBuffer = nil
+        fullText = ""
+        streamFinished = false
         state = .streaming
+        startDrain()
         task = Task { [weak self] in
             guard let self else { return }
             do {
@@ -53,15 +58,10 @@ final class CommentsSummaryViewModel: ObservableObject {
                 )
                 for try await partial in stream {
                     if Task.isCancelled { return }
-                    self.streamingBuffer = partial
-                    self.scheduleFlush()
-                }
-                if !Task.isCancelled, let final = self.streamingBuffer {
-                    self.text = final
-                    self.streamingBuffer = nil
+                    self.fullText = partial
                 }
                 if !Task.isCancelled {
-                    self.state = .done
+                    self.streamFinished = true
                 }
             } catch is CancellationError {
                 // ignore
@@ -77,6 +77,7 @@ final class CommentsSummaryViewModel: ObservableObject {
                     message: classified.localizedDescription,
                     kind: kind
                 )
+                self.cancelDrain()
             }
         }
     }
@@ -84,20 +85,63 @@ final class CommentsSummaryViewModel: ObservableObject {
     func cancel() {
         task?.cancel()
         task = nil
-        streamingBuffer = nil
-        flushScheduled = false
+        cancelDrain()
+        streamFinished = false
+        fullText = ""
     }
 
-    private func scheduleFlush() {
-        guard !flushScheduled else { return }
-        flushScheduled = true
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.flushInterval ?? .milliseconds(80))
-            guard let self else { return }
-            self.flushScheduled = false
-            if let buffer = self.streamingBuffer {
-                self.text = buffer
+    private func startDrain() {
+        cancelDrain()
+        drainTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+
+                let full = self.fullText
+                let shownCount = self.text.count
+                let fullCount = full.count
+
+                if shownCount < fullCount {
+                    let nextCount = Self.nextWordBoundary(
+                        in: full,
+                        afterCount: shownCount
+                    )
+                    self.text = String(full.prefix(nextCount))
+
+                    let backlog = fullCount - nextCount
+                    let interval: Duration = backlog > self.fastDrainBacklog
+                        ? self.fastWordInterval
+                        : self.baseWordInterval
+                    try? await Task.sleep(for: interval)
+                } else if self.streamFinished {
+                    self.state = .done
+                    return
+                } else {
+                    try? await Task.sleep(for: .milliseconds(30))
+                }
             }
         }
+    }
+
+    private func cancelDrain() {
+        drainTask?.cancel()
+        drainTask = nil
+    }
+
+    private static func nextWordBoundary(in text: String, afterCount count: Int) -> Int {
+        guard count < text.count else { return text.count }
+
+        let start = text.index(text.startIndex, offsetBy: count)
+        var i = start
+        while i < text.endIndex, text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        while i < text.endIndex, !text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        while i < text.endIndex, text[i].isWhitespace {
+            i = text.index(after: i)
+        }
+        let newCount = text.distance(from: text.startIndex, to: i)
+        return max(newCount, count + 1)
     }
 }

@@ -362,11 +362,14 @@ struct StoryDetailView: View {
             )
             .padding(.bottom, 12)
 
-            // VStack (not LazyVStack) for the comment thread. Lazy view
-            // recycling traps with brk #0x1 when expanding subtrees.
-            // Eager rendering is slower on huge threads but correct, and
-            // HN comment sections are bounded enough that it's fine.
-            VStack(alignment: .leading, spacing: 0) {
+            // LazyVStack — only the visible comment window renders, so
+            // big threads (500+) scroll smoothly instead of freezing on
+            // initial layout. The historical `brk #0x1` trap from
+            // dynamic-range ForEach inside CommentView is already
+            // defended against via the fixed `depthLevels` array, and
+            // stable `CommentNode.id` (Identifiable) keeps SwiftUI from
+            // recycling rows across different nodes.
+            LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(viewModel.visibleComments) { node in
                     let collapsed = viewModel.collapsed.contains(node.id)
                     CommentView(

@@ -91,29 +91,16 @@ struct StoryListView: View {
     }
 
     /// Reveal the sidebar from the content column. Called by the hero
-    /// glyph and by the leading-edge swipe gesture.
+    /// glyph. NavigationSplitView's native interactive back-swipe on
+    /// compact width handles the drag-to-reveal gesture itself — we
+    /// don't define a custom one, since an `.onEnded` handler would
+    /// shadow the native interactive drag and cause a "jump" instead of
+    /// tracking the finger.
     private func presentSidebar() {
         withAnimation(.easeOut(duration: 0.22)) {
             columnVisibility = .all
             preferredCompactColumn = .sidebar
         }
-    }
-
-    /// Leading-edge rightward drag reveals the sidebar. Mirrors the
-    /// `AppSidebar`'s leftward-drag-to-dismiss so both directions have
-    /// the same gesture vocabulary. `simultaneousGesture` keeps the
-    /// scroll view's vertical pan working.
-    private var leadingEdgeSwipe: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                guard usesCompactNavigation else { return }
-                let startedAtLeadingEdge = value.startLocation.x < 40
-                let movedRightward = value.translation.width > 60
-                let mostlyHorizontal = abs(value.translation.width) > abs(value.translation.height)
-                if startedAtLeadingEdge && movedRightward && mostlyHorizontal {
-                    presentSidebar()
-                }
-            }
     }
 
     /// Centralized switch — also dismisses the compact sidebar so the
@@ -259,7 +246,6 @@ struct StoryListView: View {
         .listStyle(.plain)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollAwareTopState(isAtTop: $listAtTop)
-        .simultaneousGesture(leadingEdgeSwipe)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
         .animation(.easeInOut(duration: 0.18), value: feedSource)
     }
