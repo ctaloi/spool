@@ -281,32 +281,20 @@ struct StoryListView: View {
             // Hide the system back-to-sidebar arrow on compact width —
             // edge-swipe and the hero hamburger handle sidebar access.
             .navigationBarBackButtonHidden(usesCompactNavigation)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    if !isSearching && !listAtTop {
-                        inlineFeedSelector
-                            .transition(.opacity.animation(.easeInOut(duration: 0.28)))
-                    } else {
-                        Color.clear
-                            .frame(width: 1, height: 1)
-                            .transition(.opacity.animation(.easeInOut(duration: 0.28)))
-                    }
+            // The system navigation bar stays hidden at all times.
+            // We render our own inline title via an overlay that sits
+            // ON TOP of the list (doesn't take frame), so toggling
+            // visibility never resizes the scroll content. That's
+            // what eliminates the historical "44pt jump" when the
+            // hero scrolls off — there's nothing to shift.
+            .toolbar(.hidden, for: .navigationBar)
+            .overlay(alignment: .top) {
+                if !isSearching && !listAtTop {
+                    inlineTitleBar
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .animation(.easeInOut(duration: 0.28), value: listAtTop)
-            // Keep the navbar present at all times — only its
-            // BACKGROUND fades in/out based on scroll position.
-            // Toggling the navbar's visibility itself (`.toolbar(.hidden,
-            // for: .navigationBar)`) causes a ~44pt layout shift on
-            // transition that no amount of hysteresis can smooth over;
-            // the content visibly jumps when the bar appears or
-            // disappears. With a transparent-at-top background, the
-            // bar reserves its frame even when invisible, so there is
-            // nothing to shift when the user scrolls past the hero.
-            .toolbarBackground(
-                (listAtTop && !isSearching) ? .hidden : .automatic,
-                for: .navigationBar
-            )
             .refreshable {
                 await refreshCurrentSource()
             }
@@ -762,6 +750,46 @@ struct StoryListView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Switch feed")
         .accessibilityValue(feedSource.displayTitle)
+    }
+
+    /// Our custom inline title bar, shown as a top-edge overlay when
+    /// the user has scrolled past the hero. Rendered as an overlay
+    /// rather than via `ToolbarItem(.principal)` so it doesn't add a
+    /// 44pt safe-area inset to the scroll content — the list keeps
+    /// its full frame and the inline title floats above it, fading
+    /// in with `.bar` material. That's what eliminates the jump on
+    /// the hero-exit transition: nothing about the scroll layout
+    /// changes, only the overlay's opacity.
+    @ViewBuilder
+    private var inlineTitleBar: some View {
+        HStack(spacing: 0) {
+            if usesCompactNavigation {
+                Button {
+                    presentSidebar()
+                } label: {
+                    Image(systemName: "sidebar.leading")
+                        .font(.system(size: 18, weight: .light))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show Menu")
+            }
+            Spacer(minLength: 0)
+            inlineFeedSelector
+            Spacer(minLength: 0)
+            // Balance the leading hamburger so the selector sits
+            // centered. Skipped on iPad regular where there's no
+            // hamburger.
+            if usesCompactNavigation {
+                Color.clear.frame(width: 44, height: 44)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 44)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
     }
 
     /// Thin stats row between the search drawer and the first story.

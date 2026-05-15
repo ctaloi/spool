@@ -5,7 +5,17 @@ import SwiftUI
 @MainActor
 final class StoryListViewModel: ObservableObject {
     @Published var feed: HNStoryFeed = .top {
-        didSet { Task { await reload() } }
+        didSet {
+            guard oldValue != feed else { return }
+            // Clear synchronously so the row gate sees stories.isEmpty
+            // = true on the very next frame. Without this, switching
+            // from one category to another briefly renders the
+            // previous category's stories under the new title until
+            // reload completes — looks broken.
+            stories = []
+            errorMessage = nil
+            Task { await reload() }
+        }
     }
     @Published private(set) var stories: [HNItem] = []
     @Published private(set) var isLoading = false
