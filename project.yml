@@ -52,15 +52,14 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN.ShareExtension
         PRODUCT_NAME: SkimHNShareExtension
-        GENERATE_INFOPLIST_FILE: YES
-        # Show "SkimHN" in the share sheet, not the internal target name.
-        INFOPLIST_KEY_CFBundleDisplayName: "SkimHN"
-        INFOPLIST_KEY_NSExtensionPointIdentifier: com.apple.share-services
-        INFOPLIST_KEY_NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
-        # Only show SkimHN in the share sheet for URLs / web pages —
-        # not for images, files, or arbitrary text. `TRUEPREDICATE`
-        # would match everything, which annoys users.
-        INFOPLIST_KEY_NSExtensionActivationRule: SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $att, ANY $att.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" OR ANY $att.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text").@count >= 1).@count == 1
+        # App extensions need a NESTED `NSExtension` dictionary in
+        # their Info.plist (with NSExtensionPointIdentifier etc.
+        # nested under it). Xcode's INFOPLIST_KEY_NSExtension* build
+        # settings only generate top-level keys, which the installer
+        # rejects at install time. So we ship a manual Info.plist
+        # rather than letting GENERATE_INFOPLIST_FILE produce one.
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: SkimHNShareExtension/Info.plist
 
 schemes:
   SkimHN:
