@@ -105,16 +105,13 @@ struct StoryListView: View {
         // behavior, driven by `preferredCompactColumn`.
         .navigationSplitViewStyle(.balanced)
         .tint(Theme.accent)
-        .onChange(of: feedSource) { _, new in
+        .onChange(of: feedSource) { _, _ in
             // Whenever the source changes, clear the detail selection
             // and bring the content column forward in compact mode.
+            // Category feed assignment + reload now lives in
+            // `loadCurrentSource`, so there's nothing else to do here.
             selectedStory = nil
             preferredCompactColumn = .content
-            // Keep the category view model in lock-step so reload-on-feed-
-            // change continues to work and snapshots still get recorded.
-            if case .category(let feed) = new, viewModel.feed != feed {
-                viewModel.feed = feed
-            }
         }
         .onChange(of: auth.isLoggedIn) { _, nowLoggedIn in
             // Mentions needs a username — if the user just signed in
@@ -183,15 +180,18 @@ struct StoryListView: View {
         }
     }
 
-    /// Fires whenever `feedSource` changes. Each source has its own
-    /// loader; the category one is intentionally a no-op because the
-    /// `.onChange(of: feedSource)` above forwards into
-    /// `viewModel.feed = feed`, which triggers `viewModel.reload()` via
-    /// its `didSet`.
+    /// Fires whenever `feedSource` changes. Single path for every
+    /// loader, including category — owning the load here (rather than
+    /// dispatching via `feed.didSet`) keeps `switchingFeed` correctly
+    /// bracketed by the `.task(id: feedSource)` lifetime.
     private func loadCurrentSource() async {
         switch feedSource {
-        case .category:
-            break
+        case .category(let newFeed):
+            // Assigning .feed clears stories synchronously via the
+            // setter's didSet; this assignment is a no-op when feed
+            // already matches.
+            viewModel.feed = newFeed
+            await viewModel.reload()
         case .trending:
             await trending.load(modelContext: modelContext)
         case .bestOf(let window):
@@ -298,14 +298,10 @@ struct StoryListView: View {
             .refreshable {
                 await refreshCurrentSource()
             }
-            .task {
-                if viewModel.stories.isEmpty {
-                    await viewModel.reload()
-                }
-            }
-            // Whenever the source switches, fire the appropriate loader.
-            // The category source loads via `viewModel.feed.didSet` (set
-            // by the onChange below). The others load explicitly here.
+            // Single load entry point — fires on first appear (the id
+            // is set on initial render) AND on every feedSource change.
+            // Brackets switchingFeed so the indicator survives until
+            // the destination data has actually landed.
             .task(id: feedSource) {
                 await loadCurrentSource()
                 switchingFeed = false
@@ -378,10 +374,16 @@ struct StoryListView: View {
 
     @ViewBuilder
     private var feedRows: some View {
-        feedContextHeader
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 18))
-            .selectionDisabled()
+        // Only render the stats line once we have stories. During a
+        // feed switch / cold load, the line would otherwise show
+        // "0 stories · Updated 2m ago" with the previous feed's
+        // timestamp — reads as broken.
+        if !viewModel.stories.isEmpty {
+            feedContextHeader
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 18))
+                .selectionDisabled()
+        }
 
         if showDigest, feedSource == .category(.top) {
             DigestCardView(viewModel: digest, onDismiss: dismissDigest)
@@ -789,7 +791,25 @@ struct StoryListView: View {
         .padding(.horizontal, 8)
         .frame(height: 44)
         .frame(maxWidth: .infinity)
-        .background(.bar)
+        .background {
+            // Extend the Material up behind the status bar so the
+            // status-bar text reads over the same blurred backdrop
+            // as the title bar — matches how a system UINavigationBar
+            // handles its own translucent background. Without this,
+            // the list rows visibly scroll behind the status bar
+            // above the inline title.
+            Rectangle()
+                .fill(.bar)
+                .ignoresSafeArea(.container, edges: .top)
+        }
+        .overlay(alignment: .bottom) {
+            // Hairline anchors the title bar against the scrolling
+            // list below. Matches the subtle separator on a native
+            // UINavigationBar.
+            Rectangle()
+                .fill(Color(.separator).opacity(0.6))
+                .frame(height: 0.5)
+        }
     }
 
     /// Thin stats row between the search drawer and the first story.

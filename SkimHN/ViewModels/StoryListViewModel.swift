@@ -12,9 +12,15 @@ final class StoryListViewModel: ObservableObject {
             // from one category to another briefly renders the
             // previous category's stories under the new title until
             // reload completes — looks broken.
+            //
+            // Reload is intentionally NOT triggered here. The caller
+            // (StoryListView.loadCurrentSource) is expected to
+            // `await reload()` so the load's lifetime is bracketed by
+            // the same Task that drives `switchingFeed` — avoids a
+            // race where the feed-switch indicator clears before
+            // `isLoading` commits.
             stories = []
             errorMessage = nil
-            Task { await reload() }
         }
     }
     @Published private(set) var stories: [HNItem] = []
