@@ -34,6 +34,14 @@ struct StoryListView: View {
     /// True while the user is at the top of the story list — drives the
     /// scroll-aware hamburger button visibility.
     @State private var listAtTop: Bool = true
+    /// True for the brief window between a feed-source change and the
+    /// destination VM's first `isLoading = true` actually committing.
+    /// Without this bridge, each row builder briefly shows its empty
+    /// state on the first frame after a switch, which reads as a flash.
+    /// Set synchronously in `switchSource(to:)` so we never miss a
+    /// frame, cleared in `.task(id: feedSource)` after the loader
+    /// awaits.
+    @State private var switchingFeed: Bool = false
     @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
@@ -160,7 +168,12 @@ struct StoryListView: View {
 
     /// Centralized switch — also dismisses the compact sidebar so the
     /// content column comes forward immediately after a sidebar tap.
+    /// Sets `switchingFeed` synchronously so the destination row
+    /// builder shows its loading state on the first frame after the
+    /// flip, without waiting for the destination VM's isLoading to
+    /// commit.
     private func switchSource(to source: MainFeedSource) {
+        switchingFeed = true
         feedSource = source
         if usesCompactNavigation {
             withAnimation(.easeOut(duration: 0.22)) {
@@ -281,12 +294,17 @@ struct StoryListView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.28), value: listAtTop)
-            // Hide the navbar entirely while the hero is on-screen so
-            // the hero touches the status bar with no chrome in between.
-            // The scroll observer's hysteresis (in `ScrollTopStateModifier`)
-            // keeps this stable when the navbar's frame appears/disappears.
-            .toolbar(
-                (listAtTop && !isSearching) ? .hidden : .visible,
+            // Keep the navbar present at all times — only its
+            // BACKGROUND fades in/out based on scroll position.
+            // Toggling the navbar's visibility itself (`.toolbar(.hidden,
+            // for: .navigationBar)`) causes a ~44pt layout shift on
+            // transition that no amount of hysteresis can smooth over;
+            // the content visibly jumps when the bar appears or
+            // disappears. With a transparent-at-top background, the
+            // bar reserves its frame even when invisible, so there is
+            // nothing to shift when the user scrolls past the hero.
+            .toolbarBackground(
+                (listAtTop && !isSearching) ? .hidden : .automatic,
                 for: .navigationBar
             )
             .refreshable {
@@ -302,6 +320,7 @@ struct StoryListView: View {
             // by the onChange below). The others load explicitly here.
             .task(id: feedSource) {
                 await loadCurrentSource()
+                switchingFeed = false
             }
             // Single place where snapshots get recorded. Fires for the
             // initial load, every pull-to-refresh, AND every sidebar feed
@@ -354,7 +373,10 @@ struct StoryListView: View {
         .scrollAwareTopState(isAtTop: $listAtTop)
         .simultaneousGesture(leadingEdgeSwipe)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
-        .animation(.easeInOut(duration: 0.18), value: feedSource)
+        // Slightly slower than search toggle — feed switches are
+        // bigger conceptual changes and a 0.28s crossfade reads as
+        // intentional rather than glitchy.
+        .animation(.easeInOut(duration: 0.28), value: feedSource)
         // Hidden Cmd+R button — keyboard shortcut for refresh on iPad.
         // Same gesture as pull-to-refresh, no visible chrome.
         .background {
@@ -394,7 +416,7 @@ struct StoryListView: View {
                     .buttonStyle(.bordered)
                 }
             }
-        } else if viewModel.stories.isEmpty && viewModel.isLoading {
+        } else if viewModel.stories.isEmpty && (viewModel.isLoading || switchingFeed) {
             statusRow {
                 LoadingStateView(text: "Loading \(viewModel.feed.title.lowercased())…")
             }
@@ -427,7 +449,7 @@ struct StoryListView: View {
                     description: Text(message)
                 )
             }
-        } else if trending.items.isEmpty && trending.isLoading {
+        } else if trending.items.isEmpty && (trending.isLoading || switchingFeed) {
             statusRow {
                 LoadingStateView(text: "Computing trends…")
             }
@@ -464,7 +486,7 @@ struct StoryListView: View {
                     .buttonStyle(.bordered)
                 }
             }
-        } else if browse.results.isEmpty && browse.isLoading {
+        } else if browse.results.isEmpty && (browse.isLoading || switchingFeed) {
             statusRow {
                 LoadingStateView(text: "Loading…")
             }
@@ -527,7 +549,7 @@ struct StoryListView: View {
                     description: Text("Tap an author's name on any story or comment, then tap Follow.")
                 )
             }
-        } else if following.items.isEmpty && following.isLoading {
+        } else if following.items.isEmpty && (following.isLoading || switchingFeed) {
             statusRow { LoadingStateView(text: "Loading Following…") }
         } else if let message = following.errorMessage, following.items.isEmpty {
             statusRow {
@@ -585,7 +607,7 @@ struct StoryListView: View {
                     description: Text("Sign in to your Hacker News account to see replies to your comments.")
                 )
             }
-        } else if mentions.items.isEmpty && mentions.isLoading {
+        } else if mentions.items.isEmpty && (mentions.isLoading || switchingFeed) {
             statusRow { LoadingStateView(text: "Loading Mentions…") }
         } else if let message = mentions.errorMessage, mentions.items.isEmpty {
             statusRow {
