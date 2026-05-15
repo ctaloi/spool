@@ -792,22 +792,21 @@ struct StoryListView: View {
         .frame(height: 44)
         .frame(maxWidth: .infinity)
         .background {
-            // Extend the Material up behind the status bar so the
-            // status-bar text reads over the same blurred backdrop
-            // as the title bar — matches how a system UINavigationBar
-            // handles its own translucent background. Without this,
-            // the list rows visibly scroll behind the status bar
-            // above the inline title.
+            // ultraThinMaterial is the most translucent of the
+            // built-in blurs — text on top stays legible but the
+            // scrolling list below is clearly visible through it,
+            // giving the bar a floating "hover" feel rather than
+            // sitting as opaque chrome. Extended above the safe area
+            // so the status bar reads over the same blur.
             Rectangle()
-                .fill(.bar)
+                .fill(.ultraThinMaterial)
                 .ignoresSafeArea(.container, edges: .top)
         }
         .overlay(alignment: .bottom) {
             // Hairline anchors the title bar against the scrolling
-            // list below. Matches the subtle separator on a native
-            // UINavigationBar.
+            // list below. Softened to match the lighter bar.
             Rectangle()
-                .fill(Color(.separator).opacity(0.6))
+                .fill(Color(.separator).opacity(0.35))
                 .frame(height: 0.5)
         }
     }
