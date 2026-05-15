@@ -197,8 +197,10 @@ private struct AccessoryRectangularView: View {
         }
         // Only deep-link when we actually have a story. Otherwise
         // tapping would route to `skimhn://story/0`, which surfaces
-        // a dead-end "story not found" page.
-        .widgetURL(story.map { URL(string: "skimhn://story/\($0.id)") } ?? nil)
+        // a dead-end "story not found" page. flatMap collapses the
+        // double-optional (URL?? -> URL?) that a plain `map` would
+        // produce.
+        .widgetURL(story.flatMap { URL(string: "skimhn://story/\($0.id)") })
     }
 }
 

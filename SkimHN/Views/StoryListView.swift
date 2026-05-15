@@ -1278,8 +1278,11 @@ private extension View {
                 ReadStory.self,
                 ReadLaterStory.self,
                 ScoreSnapshot.self,
+                FollowedUser.self,
+                SeenMention.self,
             ],
             inMemory: true
         )
         .environmentObject(AuthViewModel())
+        .environmentObject(AppRouter())
 }

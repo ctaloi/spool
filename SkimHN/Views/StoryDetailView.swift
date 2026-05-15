@@ -23,6 +23,9 @@ struct StoryDetailView: View {
     @State private var heroLookupComplete: Bool = false
     @State private var showThreadQuestion: Bool = false
     @State private var showShareOptions: Bool = false
+    /// Bumps each time the user taps Share — keyed by the symbol-
+    /// effect so the icon only bounces on press, never on close.
+    @State private var shareTapCount: Int = 0
 
     init(story: HNItem) {
         _viewModel = StateObject(wrappedValue: StoryDetailViewModel(story: story))
@@ -69,14 +72,15 @@ struct StoryDetailView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
+                    shareTapCount += 1
                     showShareOptions = true
                 } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .symbolEffect(.bounce, value: showShareOptions)
+                        .symbolEffect(.bounce, value: shareTapCount)
                 }
                 .accessibilityLabel("Share Story")
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-                .sensoryFeedback(.impact(weight: .light), trigger: showShareOptions)
+                .sensoryFeedback(.impact(weight: .light), trigger: shareTapCount)
             }
 
             // Cmd+O / Cmd+Return — open the article in Safari without
