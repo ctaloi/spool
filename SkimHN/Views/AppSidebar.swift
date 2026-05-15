@@ -15,6 +15,8 @@ struct AppSidebar: View {
     @State private var profileTarget: String?
     @State private var showAbout: Bool = false
     @AppStorage(SettingsKeys.showThumbnails) private var showThumbnails: Bool = true
+    @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
+    @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
 
     let onSignIn: () -> Void
     let onSignOut: () -> Void
@@ -198,6 +200,29 @@ struct AppSidebar: View {
             Toggle(isOn: $showThumbnails) {
                 Label("Show Thumbnails", systemImage: "photo")
                     .foregroundStyle(.primary)
+            }
+            .tint(Theme.accent)
+
+            Toggle(isOn: $hideReadStories) {
+                Label("Hide Read Stories", systemImage: "eye.slash")
+                    .foregroundStyle(.primary)
+            }
+            .tint(Theme.accent)
+
+            Stepper(value: $minStoryComments, in: 0...100, step: 5) {
+                Label {
+                    HStack {
+                        Text("Minimum Comments")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(minStoryComments == 0 ? "Off" : "\(minStoryComments)+")
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .contentTransition(.numericText(value: Double(minStoryComments)))
+                    }
+                } icon: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
             }
             .tint(Theme.accent)
         }

@@ -17,4 +17,14 @@ enum SettingsKeys {
     /// dismissal. Prevents the card from coming back the same day
     /// after they've cleared it.
     static let lastDigestDismissedDay = "settings.lastDigestDismissedDay"
+
+    /// Hide stories the user has already opened from category /
+    /// trending / best-of feeds. Saved + Read Later are exempt — those
+    /// are user-curated lists where hiding "read" items would surprise.
+    static let hideReadStories = "settings.hideReadStories"
+
+    /// Minimum comment count to surface a story in feeds. 0 = off.
+    /// Hides drive-by submissions for users who only want stories
+    /// with traction. Applies to the same feeds as hideReadStories.
+    static let minStoryComments = "settings.minStoryComments"
 }

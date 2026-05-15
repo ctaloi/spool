@@ -11,6 +11,8 @@ struct StoryListView: View {
     @Query private var followedUsers: [FollowedUser]
     @AppStorage(SettingsKeys.lastOpenedAt) private var lastOpenedAt: Double = 0
     @AppStorage(SettingsKeys.lastDigestDismissedDay) private var lastDigestDismissedDay: Int = 0
+    @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
+    @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
     @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -39,6 +41,19 @@ struct StoryListView: View {
     private var savedIDs: Set<Int> { Set(savedStories.map(\.id)) }
     private var readIDs: Set<Int> { Set(readStories.map(\.id)) }
     private var readLaterIDs: Set<Int> { Set(readLaterStories.map(\.id)) }
+
+    /// Apply the user's hide-read / min-comments filters while
+    /// preserving the source's original 1-based rank. We don't
+    /// renumber — the HN-side position is itself information ("this
+    /// is currently #5 on HN"), and the filter just hides rows that
+    /// shouldn't appear. Returns (originalRank, story) pairs.
+    private func filteredRanked(_ source: [HNItem]) -> [(Int, HNItem)] {
+        source.enumerated().compactMap { index, story in
+            if hideReadStories, readIDs.contains(story.id) { return nil }
+            if minStoryComments > 0, (story.descendants ?? 0) < minStoryComments { return nil }
+            return (index + 1, story)
+        }
+    }
     private var usesCompactNavigation: Bool {
         horizontalSizeClass == .compact
     }
@@ -365,8 +380,8 @@ struct StoryListView: View {
                 LoadingStateView(text: "Loading \(viewModel.feed.title.lowercased())…")
             }
         } else {
-            ForEach(Array(viewModel.stories.enumerated()), id: \.element.id) { index, story in
-                storyRow(rank: index + 1, story: story)
+            ForEach(filteredRanked(viewModel.stories), id: \.1.id) { rank, story in
+                storyRow(rank: rank, story: story)
                     .task { await viewModel.loadMoreIfNeeded(current: story) }
             }
 
@@ -407,8 +422,8 @@ struct StoryListView: View {
                 }
             }
         } else {
-            ForEach(Array(trending.items.enumerated()), id: \.element.id) { index, story in
-                storyRow(rank: index + 1, story: story, context: trending.contextLine(for: story))
+            ForEach(filteredRanked(trending.items), id: \.1.id) { rank, story in
+                storyRow(rank: rank, story: story, context: trending.contextLine(for: story))
             }
         }
     }
@@ -443,8 +458,8 @@ struct StoryListView: View {
                 )
             }
         } else {
-            ForEach(Array(browse.results.enumerated()), id: \.element.id) { index, story in
-                storyRow(rank: index + 1, story: story)
+            ForEach(filteredRanked(browse.results), id: \.1.id) { rank, story in
+                storyRow(rank: rank, story: story)
                     .task { await browse.loadMoreIfNeeded(current: story) }
             }
             if browse.isLoading && !browse.results.isEmpty {
