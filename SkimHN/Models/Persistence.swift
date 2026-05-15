@@ -13,6 +13,10 @@ final class SavedStory {
     var score: Int?
     var descendants: Int?
     var savedAt: Date
+    /// Pre-generated AI summary populated by a background task fired
+    /// when the user saves. nil until the background task completes.
+    var cachedSummaryText: String?
+    var cachedSummaryGeneratedAt: Date?
 
     init(
         id: Int,
@@ -21,7 +25,9 @@ final class SavedStory {
         author: String?,
         score: Int?,
         descendants: Int?,
-        savedAt: Date = .now
+        savedAt: Date = .now,
+        cachedSummaryText: String? = nil,
+        cachedSummaryGeneratedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -30,6 +36,8 @@ final class SavedStory {
         self.score = score
         self.descendants = descendants
         self.savedAt = savedAt
+        self.cachedSummaryText = cachedSummaryText
+        self.cachedSummaryGeneratedAt = cachedSummaryGeneratedAt
     }
 
     /// Build a transient HNItem so the Saved tab can navigate into
@@ -103,6 +111,24 @@ final class ReadLaterStory {
             dead: nil,
             parts: nil
         )
+    }
+}
+
+/// A Hacker News user the local user is following. We notify visually
+/// (not via push) when a followed user posts something new — pollig
+/// `HNUserService` on next reload.
+@Model
+final class FollowedUser {
+    @Attribute(.unique) var username: String
+    var addedAt: Date
+    /// Item ID of the highest submission ID we've seen for this user.
+    /// Used to mark "new since last visit."
+    var lastSeenSubmissionID: Int?
+
+    init(username: String, addedAt: Date = .now, lastSeenSubmissionID: Int? = nil) {
+        self.username = username
+        self.addedAt = addedAt
+        self.lastSeenSubmissionID = lastSeenSubmissionID
     }
 }
 

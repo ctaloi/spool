@@ -10,6 +10,7 @@ enum MainFeedSource: Hashable {
     case bestOf(BestOfWindow)
     case saved
     case readLater
+    case following
 
     /// Title used in the hero, the inline navbar selector, and the
     /// large nav title for accessibility.
@@ -30,6 +31,8 @@ enum MainFeedSource: Hashable {
             return "Saved"
         case .readLater:
             return "Read Later"
+        case .following:
+            return "Following"
         }
     }
 
@@ -46,6 +49,8 @@ enum MainFeedSource: Hashable {
             return "bookmark.fill"
         case .readLater:
             return "tray.fill"
+        case .following:
+            return "person.2.fill"
         }
     }
 

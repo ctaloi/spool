@@ -1,14 +1,21 @@
 import SwiftUI
+import SwiftData
 
 struct UserProfileView: View {
     let username: String
 
     @StateObject private var viewModel = UserProfileViewModel()
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var followed: [FollowedUser]
     @State private var tab: Tab = .submissions
     @State private var openStory: HNItem?
 
     enum Tab: Hashable { case submissions, comments }
+
+    private var isFollowed: Bool {
+        followed.contains { $0.username == username }
+    }
 
     var body: some View {
         NavigationStack {
@@ -16,6 +23,19 @@ struct UserProfileView: View {
                 .navigationTitle(username)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            toggleFollow()
+                        } label: {
+                            Label(
+                                isFollowed ? "Following" : "Follow",
+                                systemImage: isFollowed ? "checkmark.circle.fill" : "plus.circle"
+                            )
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(isFollowed ? Theme.accent : .secondary)
+                        }
+                        .accessibilityLabel(isFollowed ? "Unfollow \(username)" : "Follow \(username)")
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }
                     }
@@ -24,9 +44,35 @@ struct UserProfileView: View {
                     StoryDetailView(story: item)
                         .id(item.id)
                 }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        NavigationLink {
+                            UserStatsView(username: username)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(username)
+                                    .font(.headline)
+                                Image(systemName: "chart.bar.xaxis")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View stats for \(username)")
+                    }
+                }
         }
         .onAppear {
             Task { await viewModel.load(username: username) }
+        }
+    }
+
+    private func toggleFollow() {
+        if let existing = followed.first(where: { $0.username == username }) {
+            modelContext.delete(existing)
+        } else {
+            modelContext.insert(FollowedUser(username: username))
         }
     }
 

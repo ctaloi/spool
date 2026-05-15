@@ -46,7 +46,7 @@ struct LaunchView: View {
                 }
             }
             try? await Task.sleep(for: .milliseconds(80))
-            withAnimation(.easeOut(duration: 0.35)) {
+            withAnimation(.easeInOut(duration: 0.42)) {
                 wordmarkVisible = true
             }
         }

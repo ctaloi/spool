@@ -55,6 +55,19 @@ final class SummaryViewModel: ObservableObject {
         return false
     }
 
+    /// If we've already pre-generated a summary for this story (from
+    /// the SummaryPrefetcher fired on save), short-circuit straight to
+    /// the formatted markdown render. Instant + works offline.
+    func loadCachedIfAvailable(_ cachedText: String?) -> Bool {
+        guard let cachedText, !cachedText.isEmpty else { return false }
+        cancel()
+        text = cachedText
+        fullText = cachedText
+        streamFinished = true
+        state = .done
+        return true
+    }
+
     func summarize(title: String, url: URL) {
         cancel()
         text = ""

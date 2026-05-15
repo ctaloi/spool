@@ -11,6 +11,7 @@ struct AppSidebar: View {
     @EnvironmentObject private var auth: AuthViewModel
     @Query private var savedStories: [SavedStory]
     @Query private var readLaterStories: [ReadLaterStory]
+    @Query private var followedUsers: [FollowedUser]
     @State private var profileTarget: String?
     @State private var showAbout: Bool = false
     @AppStorage(SettingsKeys.showThumbnails) private var showThumbnails: Bool = true
@@ -177,6 +178,16 @@ struct AppSidebar: View {
                 trailingCount: readLaterStories.count
             ) {
                 onSelect(.readLater)
+            }
+            if !followedUsers.isEmpty {
+                sidebarRow(
+                    label: "Following",
+                    icon: "person.2",
+                    isActive: activeSource == .following,
+                    trailingCount: followedUsers.count
+                ) {
+                    onSelect(.following)
+                }
             }
         }
     }

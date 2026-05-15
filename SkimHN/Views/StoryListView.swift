@@ -6,6 +6,12 @@ struct StoryListView: View {
     @StateObject private var search = SearchViewModel()
     @StateObject private var browse = AlgoliaFeedViewModel()
     @StateObject private var trending = TrendingFeedViewModel()
+    @StateObject private var digest = DigestViewModel()
+    @StateObject private var following = FollowingFeedViewModel()
+    @Query private var followedUsers: [FollowedUser]
+    @AppStorage(SettingsKeys.lastOpenedAt) private var lastOpenedAt: Double = 0
+    @AppStorage(SettingsKeys.lastDigestDismissedDay) private var lastDigestDismissedDay: Int = 0
+    @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
@@ -63,13 +69,15 @@ struct StoryListView: View {
                 StoryDetailView(story: story)
                     .id(story.id)
             } else {
-                ContentUnavailableView(
-                    "Pick a story",
-                    systemImage: "doc.text",
-                    description: Text("Stories you tap will open here.")
-                )
+                DetailPlaceholderView()
             }
         }
+        // `.balanced` keeps all three columns visible side-by-side on
+        // iPad (regular size class) so the user gets a true three-pane
+        // sidebar / list / detail layout. iPhone (compact) still
+        // collapses to a single column with the standard stacking
+        // behavior, driven by `preferredCompactColumn`.
+        .navigationSplitViewStyle(.balanced)
         .tint(Theme.accent)
         .onChange(of: feedSource) { _, new in
             // Whenever the source changes, clear the detail selection
@@ -152,7 +160,45 @@ struct StoryListView: View {
         case .saved, .readLater:
             // SwiftData @Query keeps these live; nothing to fetch.
             break
+        case .following:
+            await following.load(usernames: followedUsers.map(\.username))
         }
+    }
+
+    /// Hook fired after the Top feed first loads with stories. If the
+    /// user hasn't seen a digest today, generate one from the top of
+    /// the feed and reveal the card.
+    private func maybeShowDigestIfNeeded() {
+        guard feedSource == .category(.top) else { return }
+        guard digest.canRun else { return }
+        guard !viewModel.stories.isEmpty else { return }
+
+        let now = Date.now
+        let todayDay = Calendar.current.ordinality(of: .day, in: .year, for: now) ?? 0
+        let lastOpenedDate = lastOpenedAt > 0
+            ? Date(timeIntervalSince1970: lastOpenedAt)
+            : now.addingTimeInterval(-86_400)
+        let lastOpenedDay = Calendar.current.ordinality(of: .day, in: .year, for: lastOpenedDate) ?? todayDay
+
+        // Already dismissed today → leave them alone.
+        if lastDigestDismissedDay == todayDay { return }
+        // First launch of a new day → eligible.
+        guard todayDay != lastOpenedDay else { return }
+
+        digest.generate(stories: viewModel.stories)
+        withAnimation(.easeOut(duration: 0.35)) {
+            showDigest = true
+        }
+        lastOpenedAt = now.timeIntervalSince1970
+    }
+
+    private func dismissDigest() {
+        let day = Calendar.current.ordinality(of: .day, in: .year, for: .now) ?? 0
+        lastDigestDismissedDay = day
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showDigest = false
+        }
+        digest.cancel()
     }
 
     /// Pull-to-refresh dispatch.
@@ -171,6 +217,8 @@ struct StoryListView: View {
         case .saved, .readLater:
             // SwiftData @Query updates automatically.
             break
+        case .following:
+            await following.load(usernames: followedUsers.map(\.username))
         }
     }
 
@@ -223,6 +271,7 @@ struct StoryListView: View {
             // switch (which reloads via `viewModel.feed.didSet`).
             .onChange(of: viewModel.lastReloadedAt) { _, _ in
                 TrendingService.recordSnapshots(for: viewModel.stories, in: modelContext)
+                maybeShowDigestIfNeeded()
             }
             .onChange(of: searchText) { _, new in
                 search.update(query: new)
@@ -258,6 +307,7 @@ struct StoryListView: View {
                 case .bestOf: bestOfRows
                 case .saved: savedRows
                 case .readLater: readLaterRows
+                case .following: followingRows
                 }
             }
         }
@@ -267,6 +317,15 @@ struct StoryListView: View {
         .simultaneousGesture(leadingEdgeSwipe)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
         .animation(.easeInOut(duration: 0.18), value: feedSource)
+        // Hidden Cmd+R button — keyboard shortcut for refresh on iPad.
+        // Same gesture as pull-to-refresh, no visible chrome.
+        .background {
+            Button {
+                Task { await refreshCurrentSource() }
+            } label: { EmptyView() }
+            .keyboardShortcut("r", modifiers: .command)
+            .opacity(0)
+        }
     }
 
     @ViewBuilder
@@ -275,6 +334,14 @@ struct StoryListView: View {
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 18))
             .selectionDisabled()
+
+        if showDigest, feedSource == .category(.top) {
+            DigestCardView(viewModel: digest, onDismiss: dismissDigest)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
+                .selectionDisabled()
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
 
         if let message = viewModel.errorMessage, viewModel.stories.isEmpty {
             statusRow {
@@ -406,6 +473,43 @@ struct StoryListView: View {
                     story: item.asHNItem,
                     context: "Saved \(item.savedAt.formatted(.relative(presentation: .named)))"
                 )
+            }
+        }
+    }
+
+    // MARK: - Following
+
+    @ViewBuilder
+    private var followingRows: some View {
+        if followedUsers.isEmpty {
+            statusRow {
+                ContentUnavailableView(
+                    "Not Following Anyone Yet",
+                    systemImage: "person.2",
+                    description: Text("Tap an author's name on any story or comment, then tap Follow.")
+                )
+            }
+        } else if following.items.isEmpty && following.isLoading {
+            statusRow { LoadingStateView(text: "Loading Following…") }
+        } else if let message = following.errorMessage, following.items.isEmpty {
+            statusRow {
+                ContentUnavailableView(
+                    "Couldn't load",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text(message)
+                )
+            }
+        } else if following.items.isEmpty {
+            statusRow {
+                ContentUnavailableView(
+                    "Nothing recent",
+                    systemImage: "person.2",
+                    description: Text("None of the people you follow have submitted recently.")
+                )
+            }
+        } else {
+            ForEach(Array(following.items.enumerated()), id: \.element.id) { _, story in
+                storyRow(rank: nil, story: story, context: "by \(story.by ?? "—")")
             }
         }
     }
@@ -642,14 +746,18 @@ struct StoryListView: View {
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(SavedStory(
+            let saved = SavedStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants
-            ))
+            )
+            modelContext.insert(saved)
+            // Kick off the background summary pre-fetch so opening
+            // this from Saved later is instant + offline-ready.
+            SummaryPrefetcher.schedulePrefetch(for: saved, in: modelContext)
         }
     }
 

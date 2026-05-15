@@ -67,6 +67,59 @@ final class SummaryService {
         )
     }
 
+    /// Streams an answer to a user-asked question about the comment
+    /// thread. Stays grounded in the provided transcript.
+    func answerThreadQuestion(
+        title: String,
+        comments: String,
+        question: String
+    ) -> AsyncThrowingStream<String, Error> {
+        let prompt = """
+        Story: \(title)
+
+        Comments thread (oldest top-level first; indentation shows replies):
+        \(comments)
+
+        Question: \(question)
+        """
+        return makeAppleStream(
+            instructions: Self.threadQAInstructions,
+            prompt: prompt
+        )
+    }
+
+    /// Streams an answer to a user-asked question about the article
+    /// text. Same Q&A pattern as the comment thread, different scope.
+    func answerArticleQuestion(
+        title: String,
+        articleText: String,
+        question: String
+    ) -> AsyncThrowingStream<String, Error> {
+        let prompt = """
+        Title: \(title)
+
+        Article text:
+        \(articleText)
+
+        Question: \(question)
+        """
+        return makeAppleStream(
+            instructions: Self.articleQAInstructions,
+            prompt: prompt
+        )
+    }
+
+    /// Streams a "what you missed since you last opened the app"
+    /// digest given a list of recent top stories.
+    func digestRecentStories(
+        headlines: String
+    ) -> AsyncThrowingStream<String, Error> {
+        makeAppleStream(
+            instructions: Self.digestInstructions,
+            prompt: "Recent top stories:\n\(headlines)"
+        )
+    }
+
     private static let articleInstructions = """
     You are a concise news-article summarizer for a Hacker News reader. \
     Produce a tight summary of the article the user provides.
@@ -102,6 +155,48 @@ final class SummaryService {
     - Paraphrase only — no direct quotes.
     - Neutral tone. Concrete claims over generalities.
     - If the thread is too short or low-signal, say "Not enough discussion to summarize" and stop.
+    """
+
+    private static let threadQAInstructions = """
+    You answer a reader's question about a Hacker News comment thread, using ONLY the comments provided.
+
+    Format:
+    - Open with one short paragraph answering the question directly. If the thread doesn't address it, say so plainly — don't invent.
+    - Then 2–4 bullets surfacing the strongest supporting points or counter-arguments from the thread.
+
+    Rules:
+    - Ground every claim in the provided comments.
+    - Paraphrase — no direct quotes.
+    - No usernames.
+    - If the thread is silent on the question, say "The thread doesn't really cover this" and stop.
+    - Neutral tone, concrete claims, no editorializing.
+    """
+
+    private static let articleQAInstructions = """
+    You answer a reader's question about a news article, using ONLY the article text provided.
+
+    Format:
+    - One short paragraph answering directly. If the article doesn't address it, say so.
+    - 1–3 bullets with supporting specifics from the text.
+
+    Rules:
+    - Use only facts present in the article.
+    - No speculation.
+    - No editorializing.
+    """
+
+    private static let digestInstructions = """
+    You write a brief "what you missed" catch-up for a Hacker News reader who hasn't opened the app in a while.
+
+    Format:
+    - One opening line setting the scene (e.g., "Quiet morning on HN" / "Lots of AI news today").
+    - 3–5 bullets, each grouping related stories under a short theme. Lead with the most-discussed/highest-score themes.
+    - No links, no usernames, no scores.
+
+    Rules:
+    - Use only the provided story titles. Don't fabricate stories.
+    - Keep it under 90 words total.
+    - Conversational, lightly punchy. Not corporate.
     """
 
     private func makeAppleStream(

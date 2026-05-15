@@ -32,6 +32,8 @@ targets:
     platform: iOS
     sources:
       - path: SkimHN
+    dependencies:
+      - target: SkimHNShareExtension
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -40,6 +42,22 @@ targets:
       gatherCoverageData: false
       commandLineArguments: {}
       environmentVariables: []
+
+  SkimHNShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SkimHNShareExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN.ShareExtension
+        PRODUCT_NAME: SkimHNShareExtension
+        GENERATE_INFOPLIST_FILE: YES
+        # Show "SkimHN" in the share sheet, not the internal target name.
+        INFOPLIST_KEY_CFBundleDisplayName: "SkimHN"
+        INFOPLIST_KEY_NSExtensionPointIdentifier: com.apple.share-services
+        INFOPLIST_KEY_NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+        INFOPLIST_KEY_NSExtensionActivationRule: TRUEPREDICATE
 
 schemes:
   SkimHN:

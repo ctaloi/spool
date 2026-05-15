@@ -82,6 +82,12 @@ struct StoryRowView: View {
         // iPad / Mac Catalyst: subtle highlight when hovered.
         // No effect on iPhone.
         .hoverEffect(.highlight)
+        // Drag the story out to Safari / Notes / Mail / Messages.
+        // Most receivers know what to do with a URL; pure-text targets
+        // get a sensible fallback constructed inside `dragText`.
+        .draggable(articleURL ?? URL(string: "https://news.ycombinator.com/item?id=\(story.id)")!) {
+            dragPreview
+        }
         .task(id: articleURL) {
             // Skip network work entirely when the toggle is off — no
             // wasted HTML fetches for thumbnails we'd never render.
@@ -132,6 +138,30 @@ struct StoryRowView: View {
             return accentColor.opacity(0.55)
         }
         return Color(.separator).opacity(0.4)
+    }
+
+    /// Mini card shown under the user's finger while dragging the row
+    /// to another app. The system handles the lift / settle animation;
+    /// this just needs to be a small, glanceable preview.
+    private var dragPreview: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc.richtext")
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(story.title ?? "(no title)")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                if let host = story.host {
+                    Text(host)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var fallbackLetter: String {

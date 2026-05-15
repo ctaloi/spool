@@ -22,12 +22,15 @@ struct SkimHNApp: App {
                 }
             }
             .task {
-                // ~1.2s total — enough time for the three bars to
-                // stagger in and the wordmark to settle. The main view
-                // is already mounting + fetching beneath, so this is
-                // pure brand presence, not added wait.
-                try? await Task.sleep(for: .milliseconds(1_200))
-                withAnimation(.easeInOut(duration: 0.45)) {
+                // ~1.3s total — enough time for the three bars to
+                // stagger in, the wordmark to settle, AND give the main
+                // view a few extra frames to finish its first layout
+                // pass underneath. Dismissing too early lets the
+                // crossfade race the list's first-render work, which
+                // shows up as a dropped frame near the very end of the
+                // splash animation.
+                try? await Task.sleep(for: .milliseconds(1_300))
+                withAnimation(.easeInOut(duration: 0.55)) {
                     showLaunch = false
                 }
             }
@@ -37,6 +40,7 @@ struct SkimHNApp: App {
             ReadStory.self,
             ReadLaterStory.self,
             ScoreSnapshot.self,
+            FollowedUser.self,
         ])
     }
 }

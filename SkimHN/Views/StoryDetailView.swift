@@ -21,6 +21,7 @@ struct StoryDetailView: View {
     /// skeleton while we're looking, then disappear cleanly when we
     /// learn the article has no image — instead of pulsing forever.
     @State private var heroLookupComplete: Bool = false
+    @State private var showThreadQuestion: Bool = false
 
     init(story: HNItem) {
         _viewModel = StateObject(wrappedValue: StoryDetailViewModel(story: story))
@@ -40,6 +41,17 @@ struct StoryDetailView: View {
         .refreshable { await viewModel.loadComments(forceReload: true) }
         .navigationTitle(viewModel.story.host ?? "Story")
         .navigationBarTitleDisplayMode(.inline)
+        // Tint the navbar's glass material with the story's dominant
+        // color. Subtle (low-opacity material) — the navbar still reads
+        // as standard chrome but each story carries a hint of its
+        // source's brand. Animated so it settles in once we've
+        // extracted the color from the hero image.
+        .toolbarBackground(
+            heroAccent.map { $0.opacity(0.22) } ?? Color.clear,
+            for: .navigationBar
+        )
+        .toolbarBackground(.visible, for: .navigationBar)
+        .animation(.easeInOut(duration: 0.5), value: heroAccent)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -51,11 +63,27 @@ struct StoryDetailView: View {
                 }
                 .accessibilityLabel(isSaved ? "Unsave Story" : "Save Story")
                 .sensoryFeedback(.success, trigger: isSaved)
+                .keyboardShortcut("s", modifiers: .command)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 if let urlString = viewModel.story.url, let url = URL(string: urlString) {
                     ShareLink(item: url)
+                        .keyboardShortcut("s", modifiers: [.command, .shift])
+                }
+            }
+
+            // Cmd+O / Cmd+Return — open the article in Safari without
+            // having to scroll back to the header chip.
+            ToolbarItem(placement: .topBarTrailing) {
+                if let urlString = viewModel.story.url, let url = URL(string: urlString) {
+                    Button {
+                        safariURL = PresentedURL(url: url)
+                    } label: {
+                        Image(systemName: "safari")
+                    }
+                    .accessibilityLabel("Open Article")
+                    .keyboardShortcut("o", modifiers: .command)
                 }
             }
         }
@@ -69,11 +97,15 @@ struct StoryDetailView: View {
                 await viewModel.loadComments()
                 markAsRead()
             }
-            // Hero image — independent of the thumbnail-in-list toggle.
-            // The detail page is where the user explicitly opted into
-            // the article, so the image is always welcome here.
             Task { @MainActor in
                 await loadHeroImage()
+            }
+            // If this story is already saved and we pre-generated its
+            // summary in the background, surface that instantly so the
+            // user doesn't see "Tap Summarize" + waste a model run.
+            if let saved = savedStories.first(where: { $0.id == viewModel.story.id }),
+               let cached = saved.cachedSummaryText, !cached.isEmpty {
+                _ = summary.loadCachedIfAvailable(cached)
             }
         }
         .sheet(item: $safariURL) { wrapped in
@@ -95,6 +127,12 @@ struct StoryDetailView: View {
             set: { profileTarget = $0?.value }
         )) { target in
             UserProfileView(username: target.value)
+        }
+        .sheet(isPresented: $showThreadQuestion) {
+            ThreadQuestionView(
+                title: viewModel.story.title ?? "",
+                transcript: viewModel.commentsTranscript()
+            )
         }
         .sheet(item: Binding(
             get: { domainTarget.map(IdentifiedHost.init) },
@@ -396,11 +434,31 @@ struct StoryDetailView: View {
 
     @ViewBuilder
     private var commentsSection: some View {
-        Label("\(viewModel.story.descendants ?? 0) Comments", systemImage: "bubble.left.and.bubble.right.fill")
-            .font(Theme.Typography.sectionTitle)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 4)
+        HStack(spacing: 8) {
+            Label("\(viewModel.story.descendants ?? 0) Comments", systemImage: "bubble.left.and.bubble.right.fill")
+                .font(Theme.Typography.sectionTitle)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if !viewModel.comments.isEmpty {
+                Button {
+                    showThreadQuestion = true
+                } label: {
+                    Label("Ask", systemImage: "questionmark.bubble")
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Theme.accent.opacity(0.55), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ask a question about this thread")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 4)
 
         if let errorMessage = viewModel.errorMessage, viewModel.comments.isEmpty {
             VStack(spacing: 8) {
@@ -479,14 +537,16 @@ struct StoryDetailView: View {
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(SavedStory(
+            let saved = SavedStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants
-            ))
+            )
+            modelContext.insert(saved)
+            SummaryPrefetcher.schedulePrefetch(for: saved, in: modelContext)
         }
     }
 }

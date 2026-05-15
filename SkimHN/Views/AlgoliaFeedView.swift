@@ -157,14 +157,16 @@ struct AlgoliaFeedView: View {
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(SavedStory(
+            let saved = SavedStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants
-            ))
+            )
+            modelContext.insert(saved)
+            SummaryPrefetcher.schedulePrefetch(for: saved, in: modelContext)
         }
     }
 
