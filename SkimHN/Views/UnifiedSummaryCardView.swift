@@ -22,6 +22,10 @@ struct UnifiedSummaryCardView: View {
     let hasComments: Bool
 
     @Environment(\.openURL) private var openURL
+    /// Local TTS controller for the speaker button. Owned per card
+    /// instance so swiping between detail pages each tear down the
+    /// previous reader cleanly via .onDisappear → stop().
+    @StateObject private var speech = SummarySpeechController()
 
     var body: some View {
         // Hide the entire card on devices / configurations where the
@@ -43,8 +47,16 @@ struct UnifiedSummaryCardView: View {
                             isActive: isStreaming
                         )
                     Spacer()
+                    speakerButton
                     statusBadge
                 }
+            }
+            .onDisappear {
+                // Don't let TTS keep speaking after the card is gone.
+                // Without this, swiping back to the list while audio
+                // is mid-utterance leaves the synth running for the
+                // rest of the sentence.
+                speech.stop()
             }
         }
     }
@@ -117,6 +129,65 @@ struct UnifiedSummaryCardView: View {
 
     private var anyRunnableIdle: Bool {
         runnableArticleIdle || runnableThreadIdle
+    }
+
+    // MARK: - Speaker (TTS)
+
+    /// All summary text in render order, ready for AVSpeechSynthesizer.
+    /// Article first, then Discussion. Empty when neither section has
+    /// content yet.
+    private var combinedSpeechText: String {
+        var parts: [String] = []
+        if !article.text.isEmpty, canRunArticle {
+            parts.append("Article summary. \(article.text)")
+        }
+        if !thread.text.isEmpty, canRunThread {
+            parts.append("Discussion. \(thread.text)")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// Show the speaker only when we have something to read and
+    /// nothing is currently streaming. Listening to half-emitted
+    /// text would be confusing.
+    private var canSpeak: Bool {
+        !isStreaming && !combinedSpeechText.isEmpty
+    }
+
+    @ViewBuilder
+    private var speakerButton: some View {
+        if canSpeak {
+            Button {
+                speech.toggle(text: combinedSpeechText)
+            } label: {
+                Image(systemName: speakerIconName)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Circle().stroke(Theme.accent.opacity(0.55), lineWidth: 1)
+                    )
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(speakerAccessibilityLabel)
+        }
+    }
+
+    private var speakerIconName: String {
+        switch speech.state {
+        case .idle:     return "speaker.wave.2"
+        case .speaking: return "pause.fill"
+        case .paused:   return "play.fill"
+        }
+    }
+
+    private var speakerAccessibilityLabel: String {
+        switch speech.state {
+        case .idle:     return "Read summary aloud"
+        case .speaking: return "Pause reading"
+        case .paused:   return "Resume reading"
+        }
     }
 
     @ViewBuilder
