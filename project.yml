@@ -57,7 +57,10 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: "SkimHN"
         INFOPLIST_KEY_NSExtensionPointIdentifier: com.apple.share-services
         INFOPLIST_KEY_NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
-        INFOPLIST_KEY_NSExtensionActivationRule: TRUEPREDICATE
+        # Only show SkimHN in the share sheet for URLs / web pages —
+        # not for images, files, or arbitrary text. `TRUEPREDICATE`
+        # would match everything, which annoys users.
+        INFOPLIST_KEY_NSExtensionActivationRule: SUBQUERY(extensionItems, $item, SUBQUERY($item.attachments, $att, ANY $att.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url" OR ANY $att.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text").@count >= 1).@count == 1
 
 schemes:
   SkimHN:

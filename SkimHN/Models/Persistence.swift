@@ -114,21 +114,16 @@ final class ReadLaterStory {
     }
 }
 
-/// A Hacker News user the local user is following. We notify visually
-/// (not via push) when a followed user posts something new — pollig
-/// `HNUserService` on next reload.
+/// A Hacker News user the local user is following. Their recent
+/// submissions get pulled into the inline `Following` feed on demand.
 @Model
 final class FollowedUser {
     @Attribute(.unique) var username: String
     var addedAt: Date
-    /// Item ID of the highest submission ID we've seen for this user.
-    /// Used to mark "new since last visit."
-    var lastSeenSubmissionID: Int?
 
-    init(username: String, addedAt: Date = .now, lastSeenSubmissionID: Int? = nil) {
+    init(username: String, addedAt: Date = .now) {
         self.username = username
         self.addedAt = addedAt
-        self.lastSeenSubmissionID = lastSeenSubmissionID
     }
 }
 

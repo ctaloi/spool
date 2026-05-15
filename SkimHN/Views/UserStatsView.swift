@@ -107,11 +107,11 @@ private struct HeatmapGrid: View {
 
     var body: some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 12)
-        let max = max(1, buckets.max() ?? 1)
+        let peak = Swift.max(1, buckets.max() ?? 1)
         LazyVGrid(columns: columns, spacing: 4) {
             ForEach(0..<min(buckets.count, 84), id: \.self) { i in
                 let count = buckets[i]
-                let intensity = Double(count) / Double(max)
+                let intensity = Double(count) / Double(peak)
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(Theme.accent.opacity(0.12 + intensity * 0.78))
                     .aspectRatio(1, contentMode: .fit)

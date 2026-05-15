@@ -100,13 +100,14 @@ struct StoryDetailView: View {
             Task { @MainActor in
                 await loadHeroImage()
             }
-            // If this story is already saved and we pre-generated its
-            // summary in the background, surface that instantly so the
-            // user doesn't see "Tap Summarize" + waste a model run.
-            if let saved = savedStories.first(where: { $0.id == viewModel.story.id }),
-               let cached = saved.cachedSummaryText, !cached.isEmpty {
-                _ = summary.loadCachedIfAvailable(cached)
-            }
+            adoptCachedSummaryIfAvailable()
+        }
+        // If the prefetcher writes a cached summary *while* the detail
+        // is open (e.g., user saved + opened in quick succession),
+        // the @Query update fires here and we adopt the cache without
+        // the user needing to close + reopen the view.
+        .onChange(of: savedStories.first(where: { $0.id == viewModel.story.id })?.cachedSummaryText) { _, _ in
+            adoptCachedSummaryIfAvailable()
         }
         .sheet(item: $safariURL) { wrapped in
             SafariView(url: wrapped.url).ignoresSafeArea()
@@ -352,6 +353,19 @@ struct StoryDetailView: View {
     /// swallowed — we just render no banner if the page has no
     /// `og:image` or the network refuses. Also pulls the dominant
     /// color out of the image so we can tint the skeleton/gradient.
+    /// Adopt the saved record's pre-generated summary if it's available
+    /// AND the user hasn't already triggered a live summarize. The
+    /// `.idle` guard prevents us from stomping on an in-flight stream
+    /// the user just kicked off manually.
+    private func adoptCachedSummaryIfAvailable() {
+        guard case .idle = summary.state else { return }
+        guard let saved = savedStories.first(where: { $0.id == viewModel.story.id }),
+              let cached = saved.cachedSummaryText,
+              !cached.isEmpty
+        else { return }
+        _ = summary.loadCachedIfAvailable(cached)
+    }
+
     private func loadHeroImage() async {
         guard let urlString = viewModel.story.url,
               let url = URL(string: urlString) else {
