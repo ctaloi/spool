@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import TipKit
 import SafariServices
 
 struct StoryDetailView: View {
@@ -24,7 +23,6 @@ struct StoryDetailView: View {
     @State private var heroLookupComplete: Bool = false
     @State private var showThreadQuestion: Bool = false
     @State private var showShareOptions: Bool = false
-    private let summarizeTip = SummarizeTip()
 
     init(story: HNItem) {
         _viewModel = StateObject(wrappedValue: StoryDetailViewModel(story: story))
@@ -96,7 +94,6 @@ struct StoryDetailView: View {
             }
         }
         .onAppear {
-            Task { await SummarizeTip.detailViewed.donate() }
             // Detached from view lifecycle on purpose: NavigationSplitView
             // can briefly tear down the detail destination during its
             // push transition on compact width, which would cancel a
@@ -328,7 +325,6 @@ struct StoryDetailView: View {
                 buildTranscript: { viewModel.commentsTranscript() },
                 hasComments: !viewModel.comments.isEmpty
             )
-            .popoverTip(summarizeTip, arrowEdge: .top)
 
             HStack(spacing: 12) {
                 VoteButton(

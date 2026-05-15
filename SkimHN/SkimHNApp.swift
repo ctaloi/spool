@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import TipKit
 import CoreSpotlight
 
 @main
@@ -39,14 +38,6 @@ struct SkimHNApp: App {
                       let id = Int(idString)
                 else { return }
                 router.handle(URL(string: "skimhn://story/\(id)")!)
-            }
-            .task {
-                // Configure TipKit so seen/dismissed state persists
-                // across launches. Idempotent — safe to re-call.
-                try? Tips.configure([
-                    .displayFrequency(.immediate),
-                    .datastoreLocation(.applicationDefault),
-                ])
             }
             .task {
                 // ~1.3s total — enough time for the three bars to
