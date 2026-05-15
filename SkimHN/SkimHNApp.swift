@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
 import TipKit
+import CoreSpotlight
 
 @main
 struct SkimHNApp: App {
     @StateObject private var auth = AuthViewModel()
+    @StateObject private var router = AppRouter()
     /// `true` for the first ~1.2s of process lifetime, then false for
     /// the rest of the session. Drives the branded splash overlay.
     @State private var showLaunch: Bool = true
@@ -18,6 +20,7 @@ struct SkimHNApp: App {
             ZStack {
                 StoryListView()
                     .environmentObject(auth)
+                    .environmentObject(router)
                     .tint(Theme.accent)
 
                 if showLaunch {
@@ -25,6 +28,17 @@ struct SkimHNApp: App {
                         .transition(.opacity)
                         .zIndex(1)
                 }
+            }
+            .onOpenURL { url in
+                router.handle(url)
+            }
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                // Spotlight tap — the unique ID is the SavedStory's
+                // numeric id (as a string).
+                guard let idString = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                      let id = Int(idString)
+                else { return }
+                router.handle(URL(string: "skimhn://story/\(id)")!)
             }
             .task {
                 // Configure TipKit so seen/dismissed state persists

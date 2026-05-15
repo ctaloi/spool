@@ -74,5 +74,23 @@ struct SkimHNShortcuts: AppShortcutsProvider {
             shortTitle: "Top HN Story",
             systemImageName: "sparkles"
         )
+        AppShortcut(
+            intent: WhatsTrendingIntent(),
+            phrases: [
+                "What's trending on \(.applicationName)",
+                "Show me trending \(.applicationName) stories"
+            ],
+            shortTitle: "Trending",
+            systemImageName: "chart.line.uptrend.xyaxis"
+        )
+        AppShortcut(
+            intent: ReadTodaysDigestIntent(),
+            phrases: [
+                "Read today's \(.applicationName) digest",
+                "What did I miss on \(.applicationName)"
+            ],
+            shortTitle: "Daily Digest",
+            systemImageName: "sparkles.rectangle.stack"
+        )
     }
 }

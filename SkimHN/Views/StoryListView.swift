@@ -43,6 +43,7 @@ struct StoryListView: View {
     /// frame, cleared in `.task(id: feedSource)` after the loader
     /// awaits.
     @State private var switchingFeed: Bool = false
+    @EnvironmentObject private var router: AppRouter
     /// Shared namespace for the iOS 26 zoom transition from a story
     /// row into `StoryDetailView`. The row tags itself as a
     /// `matchedTransitionSource`; the detail's
@@ -120,6 +121,20 @@ struct StoryListView: View {
             // `loadCurrentSource`, so there's nothing else to do here.
             selectedStory = nil
             preferredCompactColumn = .content
+        }
+        .onChange(of: router.pendingStoryID) { _, newID in
+            // Deep link from Spotlight / widget / notification.
+            // Build a stub HNItem for selection — StoryDetailView's
+            // VM re-fetches the full record by id on appear, so a
+            // bare-id stub is enough.
+            guard let id = newID else { return }
+            selectedStory = HNItem(
+                id: id, type: "story", by: nil, time: nil, text: nil,
+                url: nil, title: nil, score: nil, descendants: nil,
+                kids: nil, parent: nil, deleted: nil, dead: nil, parts: nil
+            )
+            preferredCompactColumn = .detail
+            _ = router.consumeStoryID()
         }
         .onChange(of: auth.isLoggedIn) { _, nowLoggedIn in
             // Mentions needs a username — if the user just signed in
@@ -371,6 +386,11 @@ struct StoryListView: View {
             .task(id: feedSource) {
                 await loadCurrentSource()
                 switchingFeed = false
+            }
+            // One-shot Spotlight sync on launch — picks up saves made
+            // before the indexer existed and reconciles any drift.
+            .task {
+                SavedStoryIndexer.syncAll(savedStories)
             }
             // Single place where snapshots get recorded. Fires for the
             // initial load, every pull-to-refresh, AND every sidebar feed
@@ -1033,6 +1053,7 @@ struct StoryListView: View {
     private func toggleSaved(_ story: HNItem) {
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
+            SavedStoryIndexer.deindex(story.id)
         } else {
             Task { await SwipeActionsTip.storySaved.donate() }
             let saved = SavedStory(
@@ -1047,6 +1068,8 @@ struct StoryListView: View {
             // Kick off the background summary pre-fetch so opening
             // this from Saved later is instant + offline-ready.
             SummaryPrefetcher.schedulePrefetch(for: saved, in: modelContext)
+            // Surface in iOS system Spotlight search.
+            SavedStoryIndexer.index(saved)
         }
     }
 
