@@ -245,6 +245,56 @@ struct StoryListView: View {
         digest.cancel()
     }
 
+    /// Bring the digest back after the user dismissed it (or on
+    /// demand even before today's first auto-show). Cheap: just
+    /// re-runs `generate` with the currently visible top stories
+    /// and flips the visibility flag. Clears `lastDigestDismissedDay`
+    /// so the user's earlier dismissal doesn't suppress it again.
+    private func recallDigest() {
+        lastDigestDismissedDay = 0
+        digest.generate(stories: viewModel.stories)
+        withAnimation(.easeOut(duration: 0.35)) {
+            showDigest = true
+        }
+    }
+
+    /// Quiet pill that takes the digest card's row slot when no
+    /// digest is currently visible. Tapping regenerates and reveals
+    /// the digest — gives the user a way back in without scrolling
+    /// or hunting through a menu.
+    private var digestRecallPill: some View {
+        Button(action: recallDigest) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.accent)
+                    .symbolEffect(.pulse, options: .nonRepeating)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Today's Digest")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("What's on HN today, in a paragraph.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.accent.opacity(0.7))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Reveals a generated summary of today's top stories.")
+    }
+
     /// Pull-to-refresh dispatch.
     private func refreshCurrentSource() async {
         if isSearching && feedSource.supportsSearch {
@@ -391,6 +441,14 @@ struct StoryListView: View {
                 .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
                 .selectionDisabled()
                 .transition(.opacity.combined(with: .move(edge: .top)))
+        } else if feedSource == .category(.top),
+                  !viewModel.stories.isEmpty,
+                  digest.canRun {
+            digestRecallPill
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 12, trailing: 18))
+                .selectionDisabled()
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
         }
 
         if let message = viewModel.errorMessage, viewModel.stories.isEmpty {
