@@ -2,63 +2,114 @@ import SwiftUI
 
 /// Skeleton placeholder shown in either summary section before its
 /// first words land. Three lines with descending right padding so the
-/// silhouette reads as "text loading" rather than "loading bars."
+/// silhouette reads as "text loading", overlaid with a traveling
+/// gradient shimmer — the canonical skeleton-screen pattern.
 ///
-/// Lines breathe gently out of phase so the placeholder looks alive
-/// while the model warms up. The animation is set to a long, slow
-/// easeInOut so it never crosses into "this is broken / loading
-/// forever" territory.
+/// Implementation: each line is a tertiary-fill capsule with a soft
+/// white highlight gradient masked to its bounds. The highlight's
+/// x-offset animates from -1 → +1 (in width multiples) with
+/// `.repeatForever(autoreverses: false)`, producing the "sweep". Each
+/// line's animation phase is offset by a small delay so the wave
+/// ripples down the stack instead of all three lines flashing in
+/// lockstep.
 struct SummaryPlaceholderLines: View {
-    @State private var animating = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(0..<3, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(.tertiary)
-                    .frame(height: 10)
-                    .frame(maxWidth: .infinity)
-                    .padding(.trailing, CGFloat([0, 60, 120][index]))
-                    .opacity(animating ? 0.45 : 1.0)
-                    .animation(
-                        .easeInOut(duration: 1.1)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.15),
-                        value: animating
-                    )
+                ShimmerLine(
+                    trailingPadding: CGFloat([0, 60, 120][index]),
+                    delay: Double(index) * 0.18
+                )
             }
         }
         .accessibilityHidden(true)
-        .onAppear { animating = true }
     }
 }
 
-/// Three small accent dots pulsing out of phase. Used as a "still
-/// generating" tail below in-flight summary prose — gives the user
-/// a clear "we're working" signal that doesn't compete with the
-/// header sparkle pulse.
-struct StreamingDots: View {
-    @State private var animating = false
+/// One shimmering skeleton line. Owns its own phase so each line in
+/// the stack can sweep with an offset delay without us having to
+/// thread a parent animation state.
+private struct ShimmerLine: View {
+    let trailingPadding: CGFloat
+    let delay: Double
+    @State private var phase: CGFloat = -1.2
 
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(Theme.accent.opacity(0.55))
-                    .frame(width: 5, height: 5)
-                    .scaleEffect(animating ? 1.0 : 0.55)
-                    .opacity(animating ? 1.0 : 0.4)
-                    .animation(
-                        .easeInOut(duration: 0.6)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.15),
-                        value: animating
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(.tertiary)
+            .frame(height: 10)
+            .frame(maxWidth: .infinity)
+            .padding(.trailing, trailingPadding)
+            .overlay(
+                GeometryReader { proxy in
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear,                       location: 0),
+                            .init(color: Color.white.opacity(0.55),    location: 0.5),
+                            .init(color: .clear,                       location: 1),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
                     )
+                    .frame(width: proxy.size.width * 0.45)
+                    .offset(x: phase * proxy.size.width)
+                    .blendMode(.plusLighter)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                // The shimmer overlay is purely decorative — no need to
+                // anti-alias against the trailing padding region.
+                .padding(.trailing, trailingPadding)
+            )
+            .onAppear {
+                withAnimation(
+                    .linear(duration: 1.5)
+                        .repeatForever(autoreverses: false)
+                        .delay(delay)
+                ) {
+                    phase = 1.2
+                }
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel("Generating")
-        .onAppear { animating = true }
+    }
+}
+
+/// "AI is generating" indicator used as the tail beneath in-flight
+/// summary prose. A 2pt-tall capsule with a soft accent-color
+/// highlight gradient that sweeps continuously left→right, like a
+/// tracer of light running across the bottom of the card. Reads as
+/// "the model is still writing" without competing with the header
+/// sparkle pulse.
+struct StreamingAuroraTrail: View {
+    @State private var phase: CGFloat = -1.2
+
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(Color(.tertiarySystemFill))
+            .frame(height: 2)
+            .overlay(
+                GeometryReader { proxy in
+                    LinearGradient(
+                        stops: [
+                            .init(color: .clear,                            location: 0),
+                            .init(color: Theme.accent.opacity(0.9),         location: 0.5),
+                            .init(color: .clear,                            location: 1),
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: proxy.size.width * 0.32)
+                    .offset(x: phase * proxy.size.width)
+                }
+                .clipShape(Capsule(style: .continuous))
+            )
+            .onAppear {
+                withAnimation(
+                    .linear(duration: 1.6)
+                        .repeatForever(autoreverses: false)
+                ) {
+                    phase = 1.2
+                }
+            }
+            .accessibilityLabel("Generating")
     }
 }
 

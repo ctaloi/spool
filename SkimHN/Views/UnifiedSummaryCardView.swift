@@ -209,7 +209,7 @@ struct UnifiedSummaryCardView: View {
                 // typing" tail at the bottom.
                 VStack(alignment: .leading, spacing: 10) {
                     MarkdownText(text: article.text)
-                    StreamingDots()
+                    StreamingAuroraTrail()
                         .padding(.top, 2)
                 }
             }
@@ -270,7 +270,7 @@ struct UnifiedSummaryCardView: View {
                 // plain Text.
                 VStack(alignment: .leading, spacing: 10) {
                     MarkdownText(text: thread.text)
-                    StreamingDots()
+                    StreamingAuroraTrail()
                         .padding(.top, 2)
                 }
             }

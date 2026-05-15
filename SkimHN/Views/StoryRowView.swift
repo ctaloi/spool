@@ -44,7 +44,12 @@ struct StoryRowView: View {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(story.title ?? "(no title)")
                                 .font(Theme.Typography.headline)
-                                .foregroundStyle(.primary)
+                                // Read titles go gray instead of dimmed
+                                // orange — explicit "this is read"
+                                // rather than the washed-pink the old
+                                // blanket .opacity(0.6) produced when
+                                // the accent rank bled through.
+                                .foregroundStyle(isRead ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                                 .lineLimit(3)
                                 .fixedSize(horizontal: false, vertical: true)
                             if isSaved && rank != nil {
@@ -69,6 +74,7 @@ struct StoryRowView: View {
 
                     if showThumbnails, articleURL != nil {
                         thumbnailView
+                            .opacity(isRead ? 0.55 : 1.0)
                     }
                 }
 
@@ -78,7 +84,6 @@ struct StoryRowView: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .opacity(isRead ? 0.6 : 1.0)
         // iPad / Mac Catalyst: subtle highlight when hovered.
         // No effect on iPhone.
         .hoverEffect(.highlight)
@@ -212,11 +217,14 @@ struct StoryRowView: View {
         if let rank {
             Text("\(rank)")
                 .font(Theme.Typography.scoreCompact)
-                .foregroundStyle(Theme.accent)
+                // Quieter accent for read rows so the rank doesn't
+                // wash to a pinkish-orange under a blanket dim. Crisp
+                // accent for unread, half-strength for read.
+                .foregroundStyle(Theme.accent.opacity(isRead ? 0.45 : 1.0))
         } else {
             Image(systemName: "bookmark.fill")
                 .font(Theme.Typography.caption)
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(Theme.accent.opacity(isRead ? 0.45 : 1.0))
         }
     }
 

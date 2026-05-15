@@ -549,11 +549,14 @@ struct StoryListView: View {
                 Button {
                     presentSidebar()
                 } label: {
-                    // Quiet typographic glyph — tertiary tone, even
-                    // lighter weight than the flame icon, so it reads as
-                    // ambient chrome you reach for, not an action.
+                    // Sized to balance the title block on the right —
+                    // the thin-weight 34pt feed name + 22pt icon read
+                    // as a heavy mass at the right margin; a small
+                    // glyph here makes the hero feel lopsided. Same
+                    // tertiary tone and light weight so it stays
+                    // ambient — bigger, not louder.
                     Image(systemName: "sidebar.leading")
-                        .font(.system(size: 18, weight: .light))
+                        .font(.system(size: 28, weight: .light))
                         .foregroundStyle(.tertiary)
                         .frame(width: 44, height: 44, alignment: .leading)
                         .contentShape(Rectangle())
