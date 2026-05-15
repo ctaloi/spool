@@ -32,6 +32,7 @@ final class SummarySpeechController: NSObject, ObservableObject {
     func toggle(text: String) {
         switch state {
         case .idle:
+            activateAudioSession()
             speak(text)
         case .speaking:
             synth.pauseSpeaking(at: .immediate)
@@ -46,6 +47,33 @@ final class SummarySpeechController: NSObject, ObservableObject {
         guard state != .idle else { return }
         synth.stopSpeaking(at: .immediate)
         state = .idle
+        deactivateAudioSession()
+    }
+
+    /// Configure the shared AVAudioSession for spoken-audio playback
+    /// and activate it. Without this, AVSpeechSynthesizer fires its
+    /// delegate callbacks (didStart, didPause) but no audio reaches
+    /// the output — the synth thinks it's speaking while the route
+    /// isn't actually wired up. `.spokenAudio` mode signals the OS
+    /// to prefer routing through earpiece/AirPods for voice content;
+    /// `.duckOthers` momentarily dims any background music.
+    private func activateAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(
+            .playback,
+            mode: .spokenAudio,
+            options: [.duckOthers]
+        )
+        try? session.setActive(true)
+    }
+
+    /// Release the audio session so background apps' music returns
+    /// to full volume the moment we're done reading.
+    private func deactivateAudioSession() {
+        try? AVAudioSession.sharedInstance().setActive(
+            false,
+            options: [.notifyOthersOnDeactivation]
+        )
     }
 
     private func speak(_ markdown: String) {
@@ -139,13 +167,19 @@ extension SummarySpeechController: AVSpeechSynthesizerDelegate {
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        Task { @MainActor in self.state = .idle }
+        Task { @MainActor in
+            self.state = .idle
+            self.deactivateAudioSession()
+        }
     }
 
     nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
-        Task { @MainActor in self.state = .idle }
+        Task { @MainActor in
+            self.state = .idle
+            self.deactivateAudioSession()
+        }
     }
 }
