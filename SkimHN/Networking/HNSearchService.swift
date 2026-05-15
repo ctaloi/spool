@@ -76,6 +76,19 @@ struct HNSearchPage {
     var hasMore: Bool { page + 1 < totalPages }
 }
 
+/// A comment authored by the signed-in user, surfaced by an Algolia
+/// author search. Holds just enough context to fetch fresh kids and
+/// render a Mentions row without re-walking the comment tree to the
+/// story root.
+struct AuthoredComment: Identifiable, Sendable, Hashable {
+    let id: Int
+    let text: String?
+    let createdAt: Date
+    let parentID: Int?
+    let storyID: Int
+    let storyTitle: String?
+}
+
 actor HNSearchService {
     static let shared = HNSearchService()
 
@@ -114,6 +127,28 @@ actor HNSearchService {
         hitsPerPage: Int = 30
     ) async throws -> HNSearchPage {
         try await fetch(.search(query: query, sort: sort), page: page, hitsPerPage: hitsPerPage)
+    }
+
+    /// List the user's most recent comments via Algolia, newest first.
+    /// Drives the Mentions feed — each returned comment is a candidate
+    /// "thread you participated in" whose kids we then walk for replies.
+    /// `story_title` is populated on the Algolia hit, so we capture it
+    /// here and avoid an extra root-story fetch downstream.
+    func searchCommentsByAuthor(
+        _ username: String,
+        hitsPerPage: Int = 30
+    ) async throws -> [AuthoredComment] {
+        var components = URLComponents(
+            url: base.appendingPathComponent("search_by_date"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "tags", value: "comment,author_\(username)"),
+            URLQueryItem(name: "hitsPerPage", value: String(hitsPerPage)),
+        ]
+        let (data, _) = try await session.data(from: components.url!)
+        let payload = try decoder.decode(AlgoliaResponse.self, from: data)
+        return payload.hits.compactMap(\.asAuthoredComment)
     }
 
     private func urlComponents(
@@ -192,6 +227,10 @@ private struct AlgoliaHit: Decodable {
     let author: String?
     let points: Int?
     let storyText: String?
+    let commentText: String?
+    let parentID: Int?
+    let storyID: Int?
+    let storyTitle: String?
     let numComments: Int?
     let createdAtI: TimeInterval?
     let tags: [String]?
@@ -202,7 +241,11 @@ private struct AlgoliaHit: Decodable {
         case url
         case author
         case points
-        case storyText  = "story_text"
+        case storyText   = "story_text"
+        case commentText = "comment_text"
+        case parentID    = "parent_id"
+        case storyID     = "story_id"
+        case storyTitle  = "story_title"
         case numComments = "num_comments"
         case createdAtI  = "created_at_i"
         case tags        = "_tags"
@@ -233,5 +276,25 @@ private struct AlgoliaHit: Decodable {
         if tags.contains("job")   { return "job" }
         if tags.contains("poll")  { return "poll" }
         return "story"
+    }
+
+    /// Maps a `comment` hit into the public AuthoredComment shape.
+    /// Returns nil for non-comment hits — defends against a stray hit
+    /// shape changing under us.
+    var asAuthoredComment: AuthoredComment? {
+        guard let id = Int(objectID),
+              let storyID,
+              let createdAtI
+        else { return nil }
+        let isComment = tags?.contains("comment") ?? false
+        guard isComment else { return nil }
+        return AuthoredComment(
+            id: id,
+            text: commentText,
+            createdAt: Date(timeIntervalSince1970: createdAtI),
+            parentID: parentID,
+            storyID: storyID,
+            storyTitle: storyTitle
+        )
     }
 }

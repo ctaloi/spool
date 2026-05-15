@@ -8,7 +8,9 @@ struct StoryListView: View {
     @StateObject private var trending = TrendingFeedViewModel()
     @StateObject private var digest = DigestViewModel()
     @StateObject private var following = FollowingFeedViewModel()
+    @StateObject private var mentions = MentionsFeedViewModel()
     @Query private var followedUsers: [FollowedUser]
+    @Query private var seenMentions: [SeenMention]
     @AppStorage(SettingsKeys.lastOpenedAt) private var lastOpenedAt: Double = 0
     @AppStorage(SettingsKeys.lastDigestDismissedDay) private var lastDigestDismissedDay: Int = 0
     @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
@@ -177,6 +179,8 @@ struct StoryListView: View {
             break
         case .following:
             await following.load(usernames: followedUsers.map(\.username))
+        case .mentions:
+            await mentions.load(username: auth.username)
         }
     }
 
@@ -234,6 +238,8 @@ struct StoryListView: View {
             break
         case .following:
             await following.load(usernames: followedUsers.map(\.username))
+        case .mentions:
+            await mentions.load(username: auth.username)
         }
     }
 
@@ -327,6 +333,7 @@ struct StoryListView: View {
                 case .saved: savedRows
                 case .readLater: readLaterRows
                 case .following: followingRows
+                case .mentions: mentionsRows
                 }
             }
         }
@@ -554,6 +561,83 @@ struct StoryListView: View {
         }
     }
 
+    // MARK: - Mentions
+
+    @ViewBuilder
+    private var mentionsRows: some View {
+        if !auth.isLoggedIn {
+            statusRow {
+                ContentUnavailableView(
+                    "Sign In for Mentions",
+                    systemImage: "at",
+                    description: Text("Sign in to your Hacker News account to see replies to your comments.")
+                )
+            }
+        } else if mentions.items.isEmpty && mentions.isLoading {
+            statusRow { LoadingStateView(text: "Loading Mentions…") }
+        } else if let message = mentions.errorMessage, mentions.items.isEmpty {
+            statusRow {
+                ContentUnavailableView(
+                    "Couldn't load",
+                    systemImage: "wifi.exclamationmark",
+                    description: Text(message)
+                )
+            }
+        } else if mentions.items.isEmpty {
+            statusRow {
+                ContentUnavailableView(
+                    "No Mentions Yet",
+                    systemImage: "at",
+                    description: Text("Replies to your comments will show up here.")
+                )
+            }
+        } else {
+            ForEach(mentions.items) { record in
+                mentionRow(record: record)
+            }
+        }
+    }
+
+    /// One Mentions row tagged with a navigable destination — tapping
+    /// opens the host story. Marks the reply seen as a side effect of
+    /// rendering so the unread badge clears even without an explicit
+    /// "mark all as read" affordance.
+    @ViewBuilder
+    private func mentionRow(record: MentionRecord) -> some View {
+        let seenIDs = Set(seenMentions.map(\.id))
+        MentionRowView(record: record, isUnread: !seenIDs.contains(record.reply.id))
+            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
+            .listRowSeparator(.hidden)
+            .tag(mentionAsHNItem(record))
+            .onAppear {
+                if !seenIDs.contains(record.reply.id) {
+                    modelContext.insert(SeenMention(id: record.reply.id))
+                }
+            }
+    }
+
+    /// Adapt a mention into the selection-driven HNItem currency the
+    /// rest of the list uses — selecting a row sets `selectedStory`
+    /// and the detail column fetches by ID via HNAPI.
+    private func mentionAsHNItem(_ record: MentionRecord) -> HNItem {
+        HNItem(
+            id: record.parentComment.storyID,
+            type: "story",
+            by: nil,
+            time: nil,
+            text: nil,
+            url: nil,
+            title: record.parentComment.storyTitle ?? "Story",
+            score: nil,
+            descendants: nil,
+            kids: nil,
+            parent: nil,
+            deleted: nil,
+            dead: nil,
+            parts: nil
+        )
+    }
+
     /// The big in-list header at top of scroll. Hamburger on the left
     /// (iPhone only — iPad's sidebar is permanent), feed section icon
     /// and a large, thin-weight title on the right. The title is a Menu
@@ -726,6 +810,16 @@ struct StoryListView: View {
                     Label(
                         "Following",
                         systemImage: isActive(.following) ? "checkmark" : "person.2"
+                    )
+                }
+            }
+            if auth.isLoggedIn {
+                Button {
+                    switchSource(to: .mentions)
+                } label: {
+                    Label(
+                        "Mentions",
+                        systemImage: isActive(.mentions) ? "checkmark" : "at"
                     )
                 }
             }

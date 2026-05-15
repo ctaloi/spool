@@ -11,6 +11,7 @@ enum MainFeedSource: Hashable {
     case saved
     case readLater
     case following
+    case mentions
 
     /// Title used in the hero, the inline navbar selector, and the
     /// large nav title for accessibility.
@@ -33,6 +34,8 @@ enum MainFeedSource: Hashable {
             return "Read Later"
         case .following:
             return "Following"
+        case .mentions:
+            return "Mentions"
         }
     }
 
@@ -51,6 +54,8 @@ enum MainFeedSource: Hashable {
             return "tray.fill"
         case .following:
             return "person.2.fill"
+        case .mentions:
+            return "at"
         }
     }
 

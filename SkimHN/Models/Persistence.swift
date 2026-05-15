@@ -158,3 +158,20 @@ final class ReadStory {
         self.readAt = readAt
     }
 }
+
+/// A reply (comment) the user has already seen in the Mentions feed.
+/// Anything not in this table is "unread", which drives the badge
+/// count. A SwiftData set rather than a single high-water-mark Int —
+/// the latter would let a later-arriving low-ID reply get silently
+/// marked seen when the user views a higher-ID reply in the same
+/// fetch.
+@Model
+final class SeenMention {
+    @Attribute(.unique) var id: Int
+    var seenAt: Date
+
+    init(id: Int, seenAt: Date = .now) {
+        self.id = id
+        self.seenAt = seenAt
+    }
+}

@@ -191,6 +191,16 @@ struct AppSidebar: View {
                     onSelect(.following)
                 }
             }
+            if auth.isLoggedIn {
+                sidebarRow(
+                    label: "Mentions",
+                    icon: "at",
+                    isActive: activeSource == .mentions,
+                    trailingCount: nil
+                ) {
+                    onSelect(.mentions)
+                }
+            }
         }
     }
 

@@ -41,6 +41,7 @@ struct SkimHNApp: App {
             ReadLaterStory.self,
             ScoreSnapshot.self,
             FollowedUser.self,
+            SeenMention.self,
         ])
     }
 }
