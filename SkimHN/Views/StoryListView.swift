@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import TipKit
 
 struct StoryListView: View {
     @StateObject private var viewModel = StoryListViewModel()
@@ -42,6 +43,12 @@ struct StoryListView: View {
     /// frame, cleared in `.task(id: feedSource)` after the loader
     /// awaits.
     @State private var switchingFeed: Bool = false
+    /// Shared namespace for the iOS 26 zoom transition from a story
+    /// row into `StoryDetailView`. The row tags itself as a
+    /// `matchedTransitionSource`; the detail's
+    /// `.navigationTransition(.zoom(...))` reads the same id to
+    /// animate the row's frame morphing into the detail.
+    @Namespace private var storyZoomNamespace
     @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
@@ -93,6 +100,7 @@ struct StoryListView: View {
         } detail: {
             if let story = selectedStory {
                 StoryDetailView(story: story)
+                    .navigationTransition(.zoom(sourceID: story.id, in: storyZoomNamespace))
                     .id(story.id)
             } else {
                 DetailPlaceholderView()
@@ -243,6 +251,8 @@ struct StoryListView: View {
             showDigest = false
         }
         digest.cancel()
+        // Lets the DigestRecallTip fire on the recall pill below.
+        Task { await DigestRecallTip.digestDismissed.donate() }
     }
 
     /// Bring the digest back after the user dismissed it (or on
@@ -258,12 +268,17 @@ struct StoryListView: View {
         }
     }
 
+    private let digestRecallTip = DigestRecallTip()
+
     /// Quiet pill that takes the digest card's row slot when no
     /// digest is currently visible. Tapping regenerates and reveals
     /// the digest — gives the user a way back in without scrolling
     /// or hunting through a menu.
     private var digestRecallPill: some View {
-        Button(action: recallDigest) {
+        Button(action: {
+            Task { await DigestRecallTip.digestRecalled.donate() }
+            recallDigest()
+        }) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .font(.subheadline)
@@ -293,6 +308,7 @@ struct StoryListView: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Reveals a generated summary of today's top stories.")
+        .popoverTip(digestRecallTip, arrowEdge: .top)
     }
 
     /// Pull-to-refresh dispatch.
@@ -850,14 +866,12 @@ struct StoryListView: View {
         .frame(height: 44)
         .frame(maxWidth: .infinity)
         .background {
-            // ultraThinMaterial is the most translucent of the
-            // built-in blurs — text on top stays legible but the
-            // scrolling list below is clearly visible through it,
-            // giving the bar a floating "hover" feel rather than
-            // sitting as opaque chrome. Extended above the safe area
-            // so the status bar reads over the same blur.
+            // iOS 26 Liquid Glass — picks up the underlying scroll
+            // color and refracts subtly. Extended above the safe
+            // area so the status bar reads over the same glass.
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(.clear)
+                .glassEffect(.regular, in: Rectangle())
                 .ignoresSafeArea(.container, edges: .top)
         }
         .overlay(alignment: .bottom) {
@@ -987,6 +1001,7 @@ struct StoryListView: View {
             isRead: readIDs.contains(story.id),
             isSaved: savedIDs.contains(story.id)
         )
+        .matchedTransitionSource(id: story.id, in: storyZoomNamespace)
         .tag(story)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
@@ -1019,6 +1034,7 @@ struct StoryListView: View {
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
+            Task { await SwipeActionsTip.storySaved.donate() }
             let saved = SavedStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",

@@ -313,8 +313,10 @@ struct AppSidebar: View {
                 }
             } icon: {
                 Image(systemName: "arrow.clockwise.circle")
+                    .symbolEffect(.rotate, value: bgRefreshOutcome != nil)
             }
         }
+        .sensoryFeedback(.success, trigger: bgRefreshOutcome != nil)
     }
 
     @ViewBuilder

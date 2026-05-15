@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// One card, two sections (Article + Discussion), one CTA. Replaces
 /// the previous pair of separate "AI Summary" + "Thread Digest" cards
@@ -333,6 +334,7 @@ struct UnifiedSummaryCardView: View {
     /// get clobbered when the user wants to fill in the missing
     /// side.
     private func runIdleSections() {
+        Task { await SummarizeTip.summarizeTapped.donate() }
         if runnableArticleIdle { runArticle() }
         if runnableThreadIdle { runThread() }
     }

@@ -172,12 +172,17 @@ struct OutlineIconButton: View {
     let systemImage: String
     let accessibilityLabel: String
     let action: () -> Void
+    @State private var tapCount = 0
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            tapCount += 1
+            action()
+        } label: {
             Image(systemName: systemImage)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(Theme.accent)
+                .symbolEffect(.rotate, value: tapCount)
                 .frame(width: 28, height: 28)
                 .overlay(
                     Circle().stroke(Theme.accent.opacity(0.55), lineWidth: 1)

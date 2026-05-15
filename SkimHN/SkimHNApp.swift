@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import TipKit
 
 @main
 struct SkimHNApp: App {
@@ -24,6 +25,14 @@ struct SkimHNApp: App {
                         .transition(.opacity)
                         .zIndex(1)
                 }
+            }
+            .task {
+                // Configure TipKit so seen/dismissed state persists
+                // across launches. Idempotent — safe to re-call.
+                try? Tips.configure([
+                    .displayFrequency(.immediate),
+                    .datastoreLocation(.applicationDefault),
+                ])
             }
             .task {
                 // ~1.3s total — enough time for the three bars to
