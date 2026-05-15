@@ -3,9 +3,12 @@ import ImageIO
 import UniformTypeIdentifiers
 import Foundation
 
-// Renders a 1024×1024 HN Skim app icon: a single bold orange lightning bolt
-// on a clean white background. No gradients, no shadows, no text — meant to
-// read crisply at every home-screen size.
+// Renders the 1024×1024 HN Skim app icon: three left-aligned, pill-shaped
+// bars of decreasing length on a soft white field. The top bar is HN
+// orange (the ranked "top story"); the bars below fade to gray, signaling
+// a feed being skimmed. No gradients, no text — meant to read crisply at
+// every home-screen size and to look unlike any other reader app on the
+// home screen.
 
 let size: CGFloat = 1024
 let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -18,38 +21,48 @@ guard let ctx = CGContext(
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
 ) else { fatalError("ctx") }
 
-// Image-space coords (y=0 at top) so values below match a designer's mental
-// model: y increases downward.
+// Image-space coords (y=0 at top).
 ctx.translateBy(x: 0, y: size)
 ctx.scaleBy(x: 1, y: -1)
 
-// Background — solid white.
-ctx.setFillColor(CGColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0))
+// Background — clean off-white. Pure #FFFFFF reads as harsh on OLED;
+// a hair-warm tint keeps the bars feeling crisp without burning out.
+ctx.setFillColor(CGColor(red: 0.985, green: 0.985, blue: 0.982, alpha: 1.0))
 ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
 
-// Bolt — six-vertex zig-zag polygon, sized at ~88% of the canvas vertically
-// so it fills the iOS icon mask comfortably without touching the corners.
-// Vertex order is CW in image-space (y down). The shape: narrow at the top
-// peak, flares to a wide waist with a Z-notch, narrows again to the bottom
-// peak.
-let bolt: [CGPoint] = [
-    CGPoint(x: 520, y:  84),   // top peak
-    CGPoint(x: 180, y: 512),   // upper waist, outer-left
-    CGPoint(x: 380, y: 512),   // upper waist, inner (left notch jogs right)
-    CGPoint(x: 480, y: 940),   // bottom peak
-    CGPoint(x: 820, y: 512),   // lower waist, outer-right
-    CGPoint(x: 620, y: 512),   // lower waist, inner (right notch jogs left)
+// Stack geometry. Three pill bars, all left-aligned at the same x so
+// the silhouette reads as a ragged-right "list".
+let barHeight: CGFloat = 110
+let cornerRadius: CGFloat = barHeight / 2  // full pill
+let gap: CGFloat = 96
+
+let bars: [(width: CGFloat, color: CGColor)] = [
+    // Top bar — HN orange, longest. The "Top Story".
+    (720, CGColor(red: 1.0, green: 0.40, blue: 0.0, alpha: 1.0)),
+    // Middle bar — slate gray, medium length.
+    (540, CGColor(red: 0.42, green: 0.46, blue: 0.52, alpha: 1.0)),
+    // Bottom bar — light gray, shortest, fading out.
+    (360, CGColor(red: 0.72, green: 0.74, blue: 0.78, alpha: 1.0)),
 ]
 
-let path = CGMutablePath()
-path.move(to: bolt[0])
-for i in 1..<bolt.count { path.addLine(to: bolt[i]) }
-path.closeSubpath()
+let widestWidth = bars.map(\.width).max() ?? 0
+let leftX = (size - widestWidth) / 2
+let stackHeight = CGFloat(bars.count) * barHeight + CGFloat(bars.count - 1) * gap
+let stackTop = (size - stackHeight) / 2
 
-// HN-orange bolt fill — matches Theme.accent in the SwiftUI app.
-ctx.setFillColor(CGColor(red: 1.0, green: 0.40, blue: 0.0, alpha: 1.0))
-ctx.addPath(path)
-ctx.fillPath()
+for (i, bar) in bars.enumerated() {
+    let y = stackTop + CGFloat(i) * (barHeight + gap)
+    let rect = CGRect(x: leftX, y: y, width: bar.width, height: barHeight)
+    let path = CGPath(
+        roundedRect: rect,
+        cornerWidth: cornerRadius,
+        cornerHeight: cornerRadius,
+        transform: nil
+    )
+    ctx.setFillColor(bar.color)
+    ctx.addPath(path)
+    ctx.fillPath()
+}
 
 // Write PNG.
 let outArg = CommandLine.arguments.count > 1

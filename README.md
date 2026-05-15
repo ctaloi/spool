@@ -1,4 +1,4 @@
-# HN Skim
+# SkimHN
 
 A modern SwiftUI Hacker News reader with on-device AI summaries. iPhone +
 iPad, iOS 26, Liquid Glass throughout. Reading is anonymous; signing in
@@ -24,7 +24,7 @@ unlocks voting, submitting, and replying.
 
 ## Build
 
-`HNSkim.xcodeproj` is generated, not checked in. Install
+`SkimHN.xcodeproj` is generated, not checked in. Install
 [XcodeGen](https://github.com/yonaskolb/XcodeGen) once, then regenerate
 whenever files are added:
 
@@ -32,7 +32,7 @@ whenever files are added:
 brew install xcodegen
 cd ~/src/hacker-news
 xcodegen generate
-open HNSkim.xcodeproj
+open SkimHN.xcodeproj
 ```
 
 To build from the command line (force-point `xcode-select` at Xcode.app
@@ -40,7 +40,7 @@ if your system points at `CommandLineTools`):
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  xcodebuild -project HNSkim.xcodeproj -scheme HNSkim \
+  xcodebuild -project SkimHN.xcodeproj -scheme SkimHN \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
@@ -68,8 +68,8 @@ Intelligence to be enabled in Settings.
 ## Project layout
 
 ```
-HNSkim/
-  HNSkimApp.swift              @main; ModelContainer setup
+SkimHN/
+  SkimHNApp.swift              @main; ModelContainer setup
   Theme.swift                  Color tokens + Typography
   Models/
     HNItem.swift               API item shape + HNStoryFeed
@@ -114,9 +114,9 @@ tools/
 
 ## App Store positioning
 
-- App Store listing name is **"Skim for Hacker News"** to dodge
-  trademark review. Display name (`CFBundleDisplayName`) stays "HN
-  Skim".
+- App display name (`CFBundleDisplayName`) is **"SkimHN"**. We avoid
+  the full "Hacker News" string in any user-facing identifier to dodge
+  trademark review.
 - `PrivacyInfo.xcprivacy` declares
   `NSPrivacyAccessedAPICategoryUserDefaults` (`CA92.1`) and
   `NSPrivacyTracking: false`.
