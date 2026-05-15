@@ -65,6 +65,20 @@ struct ShareOptionsView: View {
         }
     }
 
+    /// Error message extracted from the VM state, if any. Surfaced
+    /// inline under the toggle so a guardrail / context-overflow
+    /// rejection doesn't silently drop summary content from the
+    /// composed share payload.
+    private var articleError: String? {
+        if case .error(let message, _) = article.state { return message }
+        return nil
+    }
+
+    private var threadError: String? {
+        if case .error(let message, _) = thread.state { return message }
+        return nil
+    }
+
     private var anyGenerating: Bool {
         (includeArticleSummary && articleIsGenerating) ||
         (includeThreadDigest && threadIsGenerating)
@@ -108,9 +122,9 @@ struct ShareOptionsView: View {
                     inlineStatus(
                         isGenerating: articleIsGenerating,
                         isReady: articleSummaryReady,
+                        errorMessage: articleError,
                         included: includeArticleSummary,
-                        runnable: canRunArticle,
-                        errorBinding: article.state
+                        runnable: canRunArticle
                     )
                 }
             }
@@ -123,9 +137,9 @@ struct ShareOptionsView: View {
                     inlineStatus(
                         isGenerating: threadIsGenerating,
                         isReady: threadDigestReady,
+                        errorMessage: threadError,
                         included: includeThreadDigest,
-                        runnable: canRunThread,
-                        errorBinding: thread.state
+                        runnable: canRunThread
                     )
                 }
             }
@@ -218,15 +232,24 @@ struct ShareOptionsView: View {
     private func inlineStatus(
         isGenerating: Bool,
         isReady: Bool,
+        errorMessage: String?,
         included: Bool,
-        runnable: Bool,
-        errorBinding: Any
+        runnable: Bool
     ) -> some View {
         if !runnable {
             // The toggle is .disabled in that case, so the user can't
             // flip it. Skip the inline status — the disabled control
             // tells the story.
             EmptyView()
+        } else if included, let errorMessage {
+            // Surface generation failures (guardrail, context overflow)
+            // so the user understands why composedText won't include
+            // their selected summary.
+            Text(errorMessage)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+                .truncationMode(.tail)
         } else if included && isGenerating {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
