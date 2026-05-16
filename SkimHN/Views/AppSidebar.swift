@@ -39,11 +39,6 @@ struct AppSidebar: View {
     /// through one handler. The owner is expected to flip its own
     /// `feedSource` state.
     let onSelect: (MainFeedSource) -> Void
-    /// Set on compact width; lets the user swipe left to return to the
-    /// content column. `nil` when running as a regular-width split where
-    /// the sidebar is permanent.
-    var onDismiss: (() -> Void)? = nil
-
     var body: some View {
         List {
             accountSection
@@ -65,24 +60,9 @@ struct AppSidebar: View {
         )) { target in
             UserProfileView(username: target.value)
         }
-        .simultaneousGesture(dismissSwipe)
         .sheet(isPresented: $showAbout) {
             AboutView()
         }
-    }
-
-    /// Leftward drag dismisses the sidebar on compact width. Uses
-    /// `simultaneousGesture` so List's vertical scroll keeps working.
-    private var dismissSwipe: some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                guard let onDismiss else { return }
-                let mostlyHorizontal = abs(value.translation.width) > abs(value.translation.height)
-                let movedLeftward = value.translation.width < -60
-                if mostlyHorizontal && movedLeftward {
-                    onDismiss()
-                }
-            }
     }
 
     // MARK: - Sections

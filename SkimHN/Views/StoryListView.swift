@@ -17,23 +17,17 @@ struct StoryListView: View {
     @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
     @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \SavedStory.savedAt, order: .reverse) private var savedStories: [SavedStory]
     @Query private var readStories: [ReadStory]
     @Query(sort: \ReadLaterStory.queuedAt, order: .reverse) private var readLaterStories: [ReadLaterStory]
     @State private var showLogin = false
     @State private var showSubmit = false
-    /// Drives what the main list renders. Updated by the title-bar
-    /// selector and the sidebar. Defaults to Top Stories on launch.
+    /// Drives what the main list renders. Updated by the sidebar's
+    /// onSelect and the toolbar feed picker. Defaults to Top Stories.
     @State private var feedSource: MainFeedSource = .category(.top)
     @State private var searchText = ""
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
-    @State private var preferredCompactColumn: NavigationSplitViewColumn = .content
     @State private var selectedStory: HNItem?
-    /// True while the user is at the top of the story list — drives the
-    /// scroll-aware hamburger button visibility.
-    @State private var listAtTop: Bool = true
     /// True for the brief window between a feed-source change and the
     /// destination VM's first `isLoading = true` actually committing.
     /// Without this bridge, each row builder briefly shows its empty
@@ -66,27 +60,15 @@ struct StoryListView: View {
             return (index + 1, story)
         }
     }
-    private var usesCompactNavigation: Bool {
-        horizontalSizeClass == .compact
-    }
 
     var body: some View {
-        NavigationSplitView(
-            columnVisibility: $columnVisibility,
-            preferredCompactColumn: $preferredCompactColumn
-        ) {
+        NavigationSplitView {
             AppSidebar(
                 activeSource: feedSource,
                 onSignIn: { showLogin = true },
                 onSignOut: { Task { await auth.logout() } },
                 onSubmit: { showSubmit = true },
-                onSelect: { source in switchSource(to: source) },
-                onDismiss: usesCompactNavigation ? {
-                    withAnimation(.easeOut(duration: 0.22)) {
-                        preferredCompactColumn = .content
-                        columnVisibility = .automatic
-                    }
-                } : nil
+                onSelect: { source in switchSource(to: source) }
             )
             .environmentObject(auth)
         } content: {
@@ -99,20 +81,17 @@ struct StoryListView: View {
                 DetailPlaceholderView()
             }
         }
-        // `.balanced` keeps all three columns visible side-by-side on
-        // iPad (regular size class) so the user gets a true three-pane
-        // sidebar / list / detail layout. iPhone (compact) still
-        // collapses to a single column with the standard stacking
-        // behavior, driven by `preferredCompactColumn`.
+        // `.balanced` keeps all three columns side-by-side on iPad
+        // (regular size class). On iPhone (compact), NavigationSplitView
+        // collapses to a NavigationStack rooted at the sidebar — the
+        // same model as Mail.app. Native back chevron + UIKit's
+        // interactivePopGestureRecognizer handle returning to the
+        // sidebar from the list and the detail. No custom drawer
+        // overlays, no custom edge swipes.
         .navigationSplitViewStyle(.balanced)
         .tint(Theme.accent)
         .onChange(of: feedSource) { _, _ in
-            // Whenever the source changes, clear the detail selection
-            // and bring the content column forward in compact mode.
-            // Category feed assignment + reload now lives in
-            // `loadCurrentSource`, so there's nothing else to do here.
             selectedStory = nil
-            preferredCompactColumn = .content
         }
         .onChange(of: router.pendingStoryID) { _, newID in
             // Deep link from Spotlight / widget / notification.
@@ -125,7 +104,6 @@ struct StoryListView: View {
                 url: nil, title: nil, score: nil, descendants: nil,
                 kids: nil, parent: nil, deleted: nil, dead: nil, parts: nil
             )
-            preferredCompactColumn = .detail
             _ = router.consumeStoryID()
         }
         .onChange(of: auth.isLoggedIn) { _, nowLoggedIn in
@@ -147,52 +125,15 @@ struct StoryListView: View {
         }
     }
 
-    /// Reveal the sidebar from the content column. Uses a snappy spring
-    /// so the on-release transition feels responsive rather than the
-    /// slower ease-out we were doing before. NavigationSplitView in
-    /// compact mode doesn't expose state for a truly interactive (drag-
-    /// tracking) reveal, so on-release with a spring is the smoothest
-    /// approximation.
-    private func presentSidebar() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-            columnVisibility = .all
-            preferredCompactColumn = .sidebar
-        }
-    }
-
-    /// Leading-edge rightward drag reveals the sidebar. Triggers on
-    /// release once the user has clearly committed to the gesture
-    /// (started near the leading edge, moved right by ≥50pt, mostly
-    /// horizontal). `simultaneousGesture` so the list's vertical scroll
-    /// keeps working.
-    private var leadingEdgeSwipe: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onEnded { value in
-                guard usesCompactNavigation else { return }
-                let startedAtLeadingEdge = value.startLocation.x < 50
-                let movedRightward = value.translation.width > 50
-                let mostlyHorizontal = abs(value.translation.width) > abs(value.translation.height)
-                if startedAtLeadingEdge && movedRightward && mostlyHorizontal {
-                    presentSidebar()
-                }
-            }
-    }
-
-    /// Centralized switch — also dismisses the compact sidebar so the
-    /// content column comes forward immediately after a sidebar tap.
-    /// Sets `switchingFeed` synchronously so the destination row
-    /// builder shows its loading state on the first frame after the
-    /// flip, without waiting for the destination VM's isLoading to
-    /// commit.
+    /// Centralized switch. Sets `switchingFeed` synchronously so the
+    /// destination row builder shows its loading state on the first
+    /// frame after the flip, without waiting for the destination
+    /// VM's isLoading to commit. NavigationSplitView's compact
+    /// collapse handles bringing the content column forward — no
+    /// manual column manipulation here.
     private func switchSource(to source: MainFeedSource) {
         switchingFeed = true
         feedSource = source
-        if usesCompactNavigation {
-            withAnimation(.easeOut(duration: 0.22)) {
-                preferredCompactColumn = .content
-                columnVisibility = .automatic
-            }
-        }
     }
 
     /// Fires whenever `feedSource` changes. Single path for every
@@ -337,48 +278,26 @@ struct StoryListView: View {
 
     private var listContent: some View {
         content
-            // Title is purely for accessibility / back-button label now —
-            // the visible title lives in the in-list hero header at the
-            // top of scroll, and reappears as a small inline chip in the
-            // toolbar (`titleChip`) once the user scrolls past the hero.
+            // Native large title — collapses to inline as the user
+            // scrolls, the standard iOS pattern that Mail / Settings
+            // / Notes all use. Replaces the previous custom hero
+            // header + inline-overlay machinery.
             .navigationTitle(isSearching ? "Search" : feedSource.displayTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            // Hide the system back-to-sidebar arrow on compact width —
-            // edge-swipe and the hero hamburger handle sidebar access.
-            .navigationBarBackButtonHidden(usesCompactNavigation)
-            // The system navigation bar stays hidden at all times.
-            // We render our own inline title via an overlay that sits
-            // ON TOP of the list (doesn't take frame), so toggling
-            // visibility never resizes the scroll content. That's
-            // what eliminates the historical "44pt jump" when the
-            // hero scrolls off — there's nothing to shift.
-            .toolbar(.hidden, for: .navigationBar)
-            .overlay(alignment: .top) {
-                if !isSearching && !listAtTop {
-                    inlineTitleBar
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.28), value: listAtTop)
+            .navigationBarTitleDisplayMode(.large)
+            // Feed picker as a small toolbar Menu — power-user shortcut
+            // for switching feeds without going back to the sidebar.
+            // System-rendered control, no custom chrome.
+            .toolbar { feedPickerToolbarItem }
             .refreshable {
                 await refreshCurrentSource()
             }
-            // Single load entry point — fires on first appear (the id
-            // is set on initial render) AND on every feedSource change.
-            // Brackets switchingFeed so the indicator survives until
-            // the destination data has actually landed.
             .task(id: feedSource) {
                 await loadCurrentSource()
                 switchingFeed = false
             }
-            // One-shot Spotlight sync on launch — picks up saves made
-            // before the indexer existed and reconciles any drift.
             .task {
                 SavedStoryIndexer.syncAll(savedStories)
             }
-            // Single place where snapshots get recorded. Fires for the
-            // initial load, every pull-to-refresh, AND every sidebar feed
-            // switch (which reloads via `viewModel.feed.didSet`).
             .onChange(of: viewModel.lastReloadedAt) { _, _ in
                 TrendingService.recordSnapshots(for: viewModel.stories, in: modelContext)
                 maybeShowDigestIfNeeded()
@@ -387,7 +306,23 @@ struct StoryListView: View {
                 search.update(query: new)
             }
             .sensoryFeedback(.success, trigger: savedStories.count)
-        .sensoryFeedback(.selection, trigger: feedSource)
+            .sensoryFeedback(.selection, trigger: feedSource)
+    }
+
+    /// Toolbar feed picker — single-tap shortcut to switch the active
+    /// feed without going back to the sidebar. Renders as a system
+    /// Menu button with the current feed's icon + a chevron.
+    @ToolbarContentBuilder
+    private var feedPickerToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                feedMenuContent
+            } label: {
+                Label("Switch Feed", systemImage: feedSource.icon)
+            }
+            .accessibilityLabel("Switch feed")
+            .accessibilityValue(feedSource.displayTitle)
+        }
     }
 
     /// Single shared list so the hero stays visible in every source
@@ -396,11 +331,6 @@ struct StoryListView: View {
     @ViewBuilder
     private var content: some View {
         List(selection: $selectedStory) {
-            heroHeader
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 6, trailing: 18))
-                .selectionDisabled()
-
             if feedSource.supportsSearch {
                 inlineSearchField
                     .listRowSeparator(.hidden)
@@ -423,9 +353,6 @@ struct StoryListView: View {
             }
         }
         .listStyle(.plain)
-        .contentMargins(.top, 0, for: .scrollContent)
-        .scrollAwareTopState(isAtTop: $listAtTop)
-        .simultaneousGesture(leadingEdgeSwipe)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
         // Slightly slower than search toggle — feed switches are
         // bigger conceptual changes and a 0.28s crossfade reads as
@@ -797,145 +724,6 @@ struct StoryListView: View {
         )
     }
 
-    /// The big in-list header at top of scroll. Hamburger on the left
-    /// (iPhone only — iPad's sidebar is permanent), feed section icon
-    /// and a large, thin-weight title on the right. The title is a Menu
-    /// trigger for switching feeds.
-    private var heroHeader: some View {
-        HStack(alignment: .center, spacing: 12) {
-            if usesCompactNavigation {
-                Button {
-                    presentSidebar()
-                } label: {
-                    // Sized to balance the title block on the right —
-                    // the thin-weight 34pt feed name + 22pt icon read
-                    // as a heavy mass at the right margin; a small
-                    // glyph here makes the hero feel lopsided. Same
-                    // tertiary tone and light weight so it stays
-                    // ambient — bigger, not louder.
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 44, height: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show Menu")
-            }
-
-            Spacer(minLength: 8)
-
-            Menu {
-                feedMenuContent
-            } label: {
-                HStack(alignment: .lastTextBaseline, spacing: 10) {
-                    Image(systemName: feedSource.icon)
-                        .font(.system(size: 22, weight: .light))
-                        .foregroundStyle(Theme.accent)
-                    Text(feedSource.displayTitle)
-                        .font(.system(size: 34, weight: .thin, design: .default))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .contentTransition(.interpolate)
-                .animation(.easeInOut(duration: 0.2), value: feedSource)
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .accessibilityLabel("Switch feed")
-            .accessibilityValue(feedSource.displayTitle)
-        }
-        .padding(.vertical, 4)
-    }
-
-    /// Small inline feed selector that lives in the navigation bar's
-    /// principal slot at all scroll positions. Same typographic language
-    /// as the hero (thin-weight title, accent-tinted feed icon, quiet
-    /// chevron) so the toolbar reads as a continuation of the hero, not
-    /// a separate UI region. Tap to switch feeds.
-    private var inlineFeedSelector: some View {
-        Menu {
-            feedMenuContent
-        } label: {
-            HStack(alignment: .center, spacing: 7) {
-                Image(systemName: feedSource.icon)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(Theme.accent)
-                Text(feedSource.displayTitle)
-                    .font(.system(size: 20, weight: .light, design: .default))
-                    .foregroundStyle(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .contentTransition(.interpolate)
-            .animation(.easeInOut(duration: 0.18), value: feedSource)
-        }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .accessibilityLabel("Switch feed")
-        .accessibilityValue(feedSource.displayTitle)
-    }
-
-    /// Our custom inline title bar, shown as a top-edge overlay when
-    /// the user has scrolled past the hero. Rendered as an overlay
-    /// rather than via `ToolbarItem(.principal)` so it doesn't add a
-    /// 44pt safe-area inset to the scroll content — the list keeps
-    /// its full frame and the inline title floats above it, fading
-    /// in with `.bar` material. That's what eliminates the jump on
-    /// the hero-exit transition: nothing about the scroll layout
-    /// changes, only the overlay's opacity.
-    @ViewBuilder
-    private var inlineTitleBar: some View {
-        HStack(spacing: 0) {
-            if usesCompactNavigation {
-                Button {
-                    presentSidebar()
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 18, weight: .light))
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show Menu")
-            }
-            Spacer(minLength: 0)
-            inlineFeedSelector
-            Spacer(minLength: 0)
-            // Balance the leading hamburger so the selector sits
-            // centered. Skipped on iPad regular where there's no
-            // hamburger.
-            if usesCompactNavigation {
-                Color.clear.frame(width: 44, height: 44)
-            }
-        }
-        .padding(.horizontal, 8)
-        .frame(height: 44)
-        .frame(maxWidth: .infinity)
-        .background {
-            // iOS 26 Liquid Glass — picks up the underlying scroll
-            // color and refracts subtly. Extended above the safe
-            // area so the status bar reads over the same glass.
-            Rectangle()
-                .fill(.clear)
-                .glassEffect(.regular, in: Rectangle())
-                .ignoresSafeArea(.container, edges: .top)
-        }
-        .overlay(alignment: .bottom) {
-            // Hairline anchors the title bar against the scrolling
-            // list below. Softened to match the lighter bar.
-            Rectangle()
-                .fill(Color(.separator).opacity(0.35))
-                .frame(height: 0.5)
-        }
-    }
-
     /// Thin stats row between the search drawer and the first story.
     /// Feed name lives in the hero now, so this is just
     /// "30 stories · Updated 2m ago" — quiet, scrolls away with the list.
@@ -1274,42 +1062,6 @@ private struct LoadingStateView: View {
 }
 
 // MARK: - Scroll-aware "at top" detection
-
-/// Reports whether the attached scrolling view is at (or very near) its
-/// top. Asymmetric thresholds (12pt to come back to "at top", 32pt to
-/// leave it) so small inset shifts — e.g. from the navbar's background
-/// fading on or off — can't oscillate the state.
-private struct ScrollTopStateModifier: ViewModifier {
-    @Binding var isAtTop: Bool
-
-    func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-            // Distance scrolled past the natural top. At rest: ~0.
-            // Scrolled down by N pts: ~N. Inset shifts roughly cancel
-            // here because contentOffset and contentInsets.top move
-            // together when the bar resizes.
-            geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { _, scrollDepth in
-            let nextAtTop: Bool
-            if isAtTop {
-                nextAtTop = scrollDepth < 32
-            } else {
-                nextAtTop = scrollDepth < 12
-            }
-            if nextAtTop != isAtTop {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    isAtTop = nextAtTop
-                }
-            }
-        }
-    }
-}
-
-private extension View {
-    func scrollAwareTopState(isAtTop: Binding<Bool>) -> some View {
-        modifier(ScrollTopStateModifier(isAtTop: isAtTop))
-    }
-}
 
 #Preview {
     StoryListView()
