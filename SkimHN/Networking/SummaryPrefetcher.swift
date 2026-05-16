@@ -53,9 +53,11 @@ enum SummaryPrefetcher {
             // we just don't get a thread digest.
             let item = try? await HNAPI.shared.item(id: storyID)
 
-            // Article side — independent of comments.
+            // Article side — independent of comments. Uses the
+            // AUDIO prompt: conversational prose instead of the
+            // markdown sections the in-app card consumes.
             if let url {
-                let article = await Self.summarizeArticle(title: title, url: url)
+                let article = await Self.summarizeArticleForAudio(title: title, url: url)
                 await Self.persistReadLater(
                     articleSummary: article,
                     threadSummary: nil,
@@ -68,7 +70,7 @@ enum SummaryPrefetcher {
             if let item, let kids = item.kids, !kids.isEmpty {
                 let transcript = await Self.buildCommentTranscript(rootKids: kids)
                 if !transcript.isEmpty {
-                    let thread = await Self.summarizeThread(title: title, transcript: transcript)
+                    let thread = await Self.summarizeThreadForAudio(title: title, transcript: transcript)
                     if let thread {
                         await Self.persistReadLater(
                             articleSummary: nil,
@@ -141,6 +143,54 @@ enum SummaryPrefetcher {
         do {
             var accumulated = ""
             let stream = SummaryService.shared.summarizeComments(
+                title: title,
+                comments: transcript
+            )
+            for try await partial in stream {
+                accumulated = partial
+            }
+            return accumulated
+        } catch {
+            return nil
+        }
+    }
+
+    /// Audio-prompt article summary — conversational prose for TTS
+    /// playback. Same context-budget retry as the visual prompt.
+    private static func summarizeArticleForAudio(title: String, url: URL) async -> String? {
+        var charBudget = 6_000
+        let minBudget = 1_500
+        while true {
+            do {
+                let article = try await ArticleFetcher.shared
+                    .fetchText(from: url, maxCharacters: charBudget)
+                guard !article.isEmpty else { return nil }
+                var accumulated = ""
+                let stream = SummaryService.shared.summarizeArticleForAudio(
+                    title: title,
+                    articleText: article
+                )
+                for try await partial in stream {
+                    accumulated = partial
+                }
+                return accumulated
+            } catch {
+                let classified = SummaryError.classify(error)
+                if case .contextTooLong = classified, charBudget > minBudget {
+                    charBudget = max(minBudget, charBudget / 2)
+                    continue
+                }
+                return nil
+            }
+        }
+    }
+
+    /// Audio-prompt comments summary — conversational prose for
+    /// TTS playback.
+    private static func summarizeThreadForAudio(title: String, transcript: String) async -> String? {
+        do {
+            var accumulated = ""
+            let stream = SummaryService.shared.summarizeCommentsForAudio(
                 title: title,
                 comments: transcript
             )

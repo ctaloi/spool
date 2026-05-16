@@ -117,6 +117,33 @@ final class SummaryService {
         )
     }
 
+    /// Audio-tuned article summary for the Read Later playlist. The
+    /// model is told this is being read aloud, so the output is
+    /// conversational prose with no markdown / bullets / labels.
+    /// Section transitions become full sentences.
+    func summarizeArticleForAudio(
+        title: String,
+        articleText: String
+    ) -> AsyncThrowingStream<String, Error> {
+        makeAppleStream(
+            instructions: Self.articleAudioInstructions,
+            prompt: "Title: \(title)\n\nArticle text:\n\(articleText)"
+        )
+    }
+
+    /// Audio-tuned comments summary for the Read Later playlist.
+    /// Same conversational pivot — no markdown headings ("Sentiment",
+    /// "Themes") that sound clinical when spoken.
+    func summarizeCommentsForAudio(
+        title: String,
+        comments: String
+    ) -> AsyncThrowingStream<String, Error> {
+        makeAppleStream(
+            instructions: Self.commentsAudioInstructions,
+            prompt: "Story: \(title)\n\nComments thread (oldest top-level first; indentation shows replies):\n\(comments)"
+        )
+    }
+
     /// Streams a "what you missed since you last opened the app"
     /// digest given a list of recent top stories.
     func digestRecentStories(
@@ -192,6 +219,74 @@ final class SummaryService {
     - No usernames.
     - If the thread is silent on the question, say "The thread doesn't really cover this" and stop.
     - Neutral tone, concrete claims, no editorializing.
+    """
+
+    /// Audio-friendly variant for the Read Later playlist. The
+    /// in-app summary is laid out with markdown headings and
+    /// bullets for visual scanning; spoken aloud, those structural
+    /// markers read clinically ("Bullet one. Bullet two."). The
+    /// audio prompt asks for flowing conversational prose — the
+    /// kind of brief explainer a knowledgeable friend would
+    /// volunteer over coffee.
+    private static let articleAudioInstructions = """
+    You are summarizing a Hacker News article for a listener who is hearing \
+    this read aloud — over AirPods on a walk, in the car, while cooking. The \
+    output goes straight to a text-to-speech engine.
+
+    Style:
+    - Plain conversational prose. No markdown, no bullets, no headings, no \
+      asterisks, no labels like "TL;DR" or "Why HN cares".
+    - 3 to 5 short paragraphs, each one or two sentences. Aim for the cadence \
+      a friend would use explaining the piece in passing.
+    - Lead with the one-sentence gist. Then the most important supporting \
+      facts. Close with one sentence on why this is interesting to a \
+      technically literate audience — phrased naturally, not as a section.
+    - Use simple connective phrases between paragraphs ("Beyond that,", \
+      "The reason this matters is", "On the technical side,") so the audio \
+      flows rather than jumping.
+    - Target 90 to 150 spoken words total — roughly 45 seconds of audio.
+
+    Rules:
+    - Only use facts present in the provided article text. If the text is too \
+      short, paywalled, or missing, say "Not enough article content to summarize" \
+      and stop.
+    - Do not repeat the title.
+    - No speculation, no editorializing, no predictions about reactions.
+    - Neutral tone. Avoid acronyms unless they appear in the source.
+    - Spell out symbols when ambiguous in speech (say "version 3" not "v3").
+    """
+
+    /// Audio-friendly variant for the comments side of the Read
+    /// Later playlist. Same conversational pivot — section labels
+    /// ("Sentiment:", "Themes:") become natural prose connectors so
+    /// the digest sounds like reportage, not a checklist.
+    private static let commentsAudioInstructions = """
+    You are summarizing a Hacker News comment thread for a listener who is \
+    hearing this read aloud. The output goes straight to a text-to-speech \
+    engine.
+
+    Style:
+    - Plain conversational prose. No markdown, no bullets, no headings, no \
+      asterisks, no section labels like "Sentiment:" or "Themes:".
+    - 2 to 4 short paragraphs, each one or two sentences.
+    - Open with a natural-sounding take on the overall tone of the discussion \
+      ("The thread is mostly skeptical of the claim that …" rather than \
+      "Sentiment: skeptical"). Then describe the main discussion threads in \
+      flowing prose. If there's a single sharp take worth surfacing, weave \
+      it in as a final paragraph.
+    - Use connective phrases ("A separate thread debates", "One commenter \
+      makes the point that", "On the other hand,") so the audio doesn't \
+      jump between topics.
+    - Target 70 to 130 spoken words total — roughly 40 seconds of audio.
+
+    Rules:
+    - Only use content from the provided comments. Do not invent comments or \
+      quotes.
+    - Do not include usernames, even if they appear in the text.
+    - Paraphrase only — no direct quotes.
+    - Neutral tone. Concrete claims over generalities.
+    - If the thread is too short or low-signal, say "Not enough discussion \
+      to summarize" and stop.
     """
 
     private static let articleQAInstructions = """

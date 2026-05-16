@@ -43,6 +43,11 @@ struct StoryListView: View {
     /// frame, cleared in `.task(id: feedSource)` after the loader
     /// awaits.
     @State private var switchingFeed: Bool = false
+    /// Story ID the user just tapped Play on while its summary
+    /// prefetch was still in flight. Cleared when playback actually
+    /// starts (the .onChange below watches the @Query result and
+    /// auto-fires play() once the script is ready).
+    @State private var pendingPlayStoryID: Int?
     @EnvironmentObject private var router: AppRouter
 
     private var isSearching: Bool {
@@ -373,6 +378,20 @@ struct StoryListView: View {
                         }
                     }
                 }
+            }
+            // Auto-start the playlist when a Play tap landed before
+            // the summary was ready. The user tapped, we stashed
+            // pendingPlayStoryID, fired prefetch — once the script
+            // shows up via the @Query refresh, this catches it and
+            // calls play().
+            .onChange(of: readLaterStories.map(\.cachedArticleSummary)) { _, _ in
+                guard let pendingID = pendingPlayStoryID,
+                      let item = readLaterStories.first(where: { $0.id == pendingID }),
+                      item.playlistScript != nil,
+                      let index = readLaterStories.firstIndex(where: { $0.id == pendingID })
+                else { return }
+                pendingPlayStoryID = nil
+                readLaterPlayer.play(items: readLaterStories, startingAt: index)
             }
             .onChange(of: viewModel.lastReloadedAt) { _, _ in
                 TrendingService.recordSnapshots(for: viewModel.stories, in: modelContext)
@@ -725,11 +744,7 @@ struct StoryListView: View {
             readLaterPlayer.queue.map(\.id) == readLaterStories.map(\.id)
 
         Button {
-            if isPlayingThisQueue {
-                readLaterPlayer.toggle()
-            } else {
-                readLaterPlayer.play(items: readLaterStories)
-            }
+            handlePlayAllTap()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: playAllIconName(isPlaying: isPlayingThisQueue))
@@ -790,20 +805,21 @@ struct StoryListView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
-                if isCurrent {
-                    readLaterPlayer.toggle()
-                } else if let index = readLaterStories.firstIndex(where: { $0.id == item.id }) {
-                    readLaterPlayer.play(items: readLaterStories, startingAt: index)
-                }
+                handlePlayTap(for: item)
             } label: {
-                Image(systemName: rowPlayIconName(isCurrent: isCurrent))
-                    .contentTransition(.symbolEffect(.replace))
+                if pendingPlayStoryID == item.id {
+                    // Brewing: prefetch in flight, will autoplay
+                    // when the cache lands.
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: rowPlayIconName(isCurrent: isCurrent))
+                        .contentTransition(.symbolEffect(.replace))
+                }
             }
             .buttonStyle(.glass)
             .controlSize(.small)
             .tint(Theme.accent)
             .accessibilityLabel(rowPlayAccessibilityLabel(isCurrent: isCurrent, title: item.title))
-            .disabled(item.playlistScript == nil)
         }
         .padding(.vertical, 2)
         .background(
@@ -813,6 +829,53 @@ struct StoryListView: View {
             in: .rect(cornerRadius: 10, style: .continuous)
         )
         .tag(item.asHNItem)
+    }
+
+    /// Per-row Play handler. If the item already has a script,
+    /// starts immediately. If not, kicks off prefetch for that
+    /// item and stashes its id in `pendingPlayStoryID` — the
+    /// .onChange below auto-starts once the summary lands.
+    private func handlePlayTap(for item: ReadLaterStory) {
+        let isCurrent = readLaterPlayer.currentItem?.id == item.id
+        if isCurrent {
+            readLaterPlayer.toggle()
+            return
+        }
+        if item.playlistScript != nil,
+           let index = readLaterStories.firstIndex(where: { $0.id == item.id }) {
+            pendingPlayStoryID = nil
+            readLaterPlayer.play(items: readLaterStories, startingAt: index)
+            return
+        }
+        // Not ready yet — prefetch + wait.
+        pendingPlayStoryID = item.id
+        SummaryPrefetcher.schedulePrefetch(for: item, in: modelContext)
+    }
+
+    /// Play All handler. If everything in the queue already has a
+    /// script, starts immediately. If the first item needs a
+    /// prefetch, kicks one off + stashes pendingPlayStoryID so the
+    /// auto-start fires as soon as that first item is ready.
+    private func handlePlayAllTap() {
+        let isPlayingThisQueue = readLaterPlayer.isActive &&
+            readLaterPlayer.queue.map(\.id) == readLaterStories.map(\.id)
+        if isPlayingThisQueue {
+            readLaterPlayer.toggle()
+            return
+        }
+        guard let first = readLaterStories.first else { return }
+        if first.playlistScript != nil {
+            pendingPlayStoryID = nil
+            readLaterPlayer.play(items: readLaterStories)
+            return
+        }
+        // Schedule prefetch for every item missing summaries so
+        // the playlist can stream through without stalling on
+        // each row.
+        for item in readLaterStories where item.cachedArticleSummary == nil {
+            SummaryPrefetcher.schedulePrefetch(for: item, in: modelContext)
+        }
+        pendingPlayStoryID = first.id
     }
 
     private func rowPlayIconName(isCurrent: Bool) -> String {
