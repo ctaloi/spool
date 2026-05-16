@@ -93,19 +93,13 @@ struct AboutView: View {
             } label: {
                 Label {
                     Text(Self.githubURL.host.map { $0 + Self.githubURL.path } ?? Self.githubURL.absoluteString)
-                        .font(.footnote.weight(.medium))
                 } icon: {
                     Image(systemName: "arrow.up.right.square")
                 }
-                .foregroundStyle(Theme.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Theme.accent.opacity(0.5), lineWidth: 1)
-                )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .tint(Theme.accent)
         }
     }
 
