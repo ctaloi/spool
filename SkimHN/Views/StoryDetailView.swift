@@ -593,14 +593,19 @@ struct StoryDetailView: View {
         if let existing = readLaterStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(ReadLaterStory(
+            let queued = ReadLaterStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants
-            ))
+            )
+            modelContext.insert(queued)
+            // Pre-generate the article + thread summaries so the
+            // playlist can stream audio without a network round-
+            // trip when the user hits Play.
+            SummaryPrefetcher.schedulePrefetch(for: queued, in: modelContext)
         }
     }
 }

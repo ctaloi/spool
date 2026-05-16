@@ -6,6 +6,10 @@ import CoreSpotlight
 struct SkimHNApp: App {
     @StateObject private var auth = AuthViewModel()
     @StateObject private var router = AppRouter()
+    /// Cross-screen Read Later playlist controller. Held at the
+    /// scene root so the mini player overlay and the playlist
+    /// screen share the same controller instance.
+    @StateObject private var readLaterPlayer = ReadLaterPlayer()
     /// `true` for the first ~1.2s of process lifetime, then false for
     /// the rest of the session. Drives the branded splash overlay.
     @State private var showLaunch: Bool = true
@@ -20,7 +24,16 @@ struct SkimHNApp: App {
                 StoryListView()
                     .environmentObject(auth)
                     .environmentObject(router)
+                    .environmentObject(readLaterPlayer)
                     .tint(Theme.accent)
+                    // Mini player overlay — sits as a safe-area inset
+                    // at the bottom across every screen, the same
+                    // placement Music / Podcasts use.
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        ReadLaterMiniPlayer()
+                            .environmentObject(readLaterPlayer)
+                    }
+                    .animation(.easeInOut(duration: 0.25), value: readLaterPlayer.isActive)
 
                 if showLaunch {
                     LaunchView()

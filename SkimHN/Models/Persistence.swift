@@ -65,7 +65,7 @@ final class SavedStory {
 /// Persisted record of a story the user queued for later reading. Same
 /// shape as `SavedStory` — different intent. Saved is a permanent
 /// archive ("bookmark this"); Read Later is a working queue ("get to
-/// this today, then clear it").
+/// this today, then clear it") with playable audio summaries.
 @Model
 final class ReadLaterStory {
     @Attribute(.unique) var id: Int
@@ -75,6 +75,17 @@ final class ReadLaterStory {
     var score: Int?
     var descendants: Int?
     var queuedAt: Date
+    /// Pre-generated article summary (Markdown). Populated by
+    /// SummaryPrefetcher when the item is added; nil until the
+    /// background task completes.
+    var cachedArticleSummary: String?
+    /// Pre-generated comments summary (Markdown). Optional even
+    /// after generation runs — a story with no comments at queue-
+    /// time leaves this nil.
+    var cachedThreadSummary: String?
+    /// When the prefetch completed. Used to decide whether to
+    /// refresh on long-tenured items.
+    var cachedSummaryGeneratedAt: Date?
 
     init(
         id: Int,
@@ -83,7 +94,10 @@ final class ReadLaterStory {
         author: String?,
         score: Int?,
         descendants: Int?,
-        queuedAt: Date = .now
+        queuedAt: Date = .now,
+        cachedArticleSummary: String? = nil,
+        cachedThreadSummary: String? = nil,
+        cachedSummaryGeneratedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -92,6 +106,9 @@ final class ReadLaterStory {
         self.score = score
         self.descendants = descendants
         self.queuedAt = queuedAt
+        self.cachedArticleSummary = cachedArticleSummary
+        self.cachedThreadSummary = cachedThreadSummary
+        self.cachedSummaryGeneratedAt = cachedSummaryGeneratedAt
     }
 
     var asHNItem: HNItem {
@@ -111,6 +128,31 @@ final class ReadLaterStory {
             dead: nil,
             parts: nil
         )
+    }
+
+    /// Combined audio script for this item's playlist entry. Same
+    /// "Article summary. ... Discussion. ..." prefixing
+    /// `SummarySpeechController` uses so listeners get section cues.
+    /// Returns nil when neither summary is available.
+    var playlistScript: String? {
+        var parts: [String] = []
+        if let s = cachedArticleSummary, !s.isEmpty {
+            parts.append("Article summary. \(s)")
+        }
+        if let s = cachedThreadSummary, !s.isEmpty {
+            parts.append("Discussion. \(s)")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    /// Rough seconds-to-listen estimate based on the cached
+    /// summaries' character count. Typical TTS speed ≈ 150 wpm =
+    /// 2.5 wps; average English word = ~5 chars + space. So a
+    /// reasonable estimate is `chars / 15` seconds.
+    var estimatedListenSeconds: Int {
+        let script = playlistScript ?? ""
+        guard !script.isEmpty else { return 0 }
+        return max(15, script.count / 15)
     }
 }
 

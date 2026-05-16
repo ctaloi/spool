@@ -18,6 +18,7 @@ struct StoryListView: View {
     @AppStorage(SettingsKeys.recentSearches) private var recentSearchesRaw: String = ""
     @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
+    @EnvironmentObject private var readLaterPlayer: ReadLaterPlayer
     @Environment(\.modelContext) private var modelContext
     /// Compact-width check — drives whether we render our custom
     /// sidebar-toggle button. On iPad regular the system already
@@ -358,6 +359,21 @@ struct StoryListView: View {
             .task {
                 SavedStoryIndexer.syncAll(savedStories)
             }
+            // Phase 6: when the playlist finishes an item, pluck
+            // it from the Read Later queue. This is what makes
+            // Read Later a queue rather than an archive — items
+            // leave once they've been consumed (auto-archive on
+            // listen). Captured by reference so we can read
+            // modelContext + the live @Query result.
+            .task {
+                readLaterPlayer.onItemFinished = { finished in
+                    Task { @MainActor in
+                        if let row = readLaterStories.first(where: { $0.id == finished.id }) {
+                            modelContext.delete(row)
+                        }
+                    }
+                }
+            }
             .onChange(of: viewModel.lastReloadedAt) { _, _ in
                 TrendingService.recordSnapshots(for: viewModel.stories, in: modelContext)
                 maybeShowDigestIfNeeded()
@@ -683,18 +699,134 @@ struct StoryListView: View {
                 ContentUnavailableView(
                     "Empty Queue",
                     systemImage: "tray",
-                    description: Text("Swipe a story and tap Read Later to queue it up.")
+                    description: Text("Tap the Read Later icon on any story to queue it up.")
                 )
             }
         } else {
+            playAllCard
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 12, trailing: 18))
+                .selectionDisabled()
+
             ForEach(readLaterStories, id: \.id) { item in
-                storyRow(
-                    rank: nil,
-                    story: item.asHNItem,
-                    context: "Queued \(item.queuedAt.formatted(.relative(presentation: .named)))"
-                )
+                readLaterPlaylistRow(item: item)
             }
         }
+    }
+
+    /// Top-of-queue card — "Play All" pill + queue-level totals.
+    /// When the player is already running, the same card swaps to
+    /// a "Now Playing" surface showing the current item's title +
+    /// position. Tap toggles play/pause.
+    @ViewBuilder
+    private var playAllCard: some View {
+        let totalSeconds = readLaterStories.reduce(0) { $0 + $1.estimatedListenSeconds }
+        let isPlayingThisQueue = readLaterPlayer.isActive &&
+            readLaterPlayer.queue.map(\.id) == readLaterStories.map(\.id)
+
+        Button {
+            if isPlayingThisQueue {
+                readLaterPlayer.toggle()
+            } else {
+                readLaterPlayer.play(items: readLaterStories)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: playAllIconName(isPlaying: isPlayingThisQueue))
+                    .font(.title2)
+                    .contentTransition(.symbolEffect(.replace))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isPlayingThisQueue ? "Now Listening" : "Play All")
+                        .font(.headline)
+                    Text(playAllSubtitle(totalSeconds: totalSeconds,
+                                          isPlayingThisQueue: isPlayingThisQueue))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.glass)
+        .tint(Theme.accent)
+        .accessibilityHint("Plays the article and discussion summary for each queued story.")
+    }
+
+    private func playAllIconName(isPlaying: Bool) -> String {
+        if isPlaying {
+            return readLaterPlayer.state == .playing ? "pause.fill" : "play.fill"
+        }
+        return "play.fill"
+    }
+
+    private func playAllSubtitle(totalSeconds: Int, isPlayingThisQueue: Bool) -> String {
+        if isPlayingThisQueue, let current = readLaterPlayer.currentItem {
+            return current.title
+        }
+        let count = readLaterStories.count
+        let mins = max(1, totalSeconds / 60)
+        return "\(count) \(count == 1 ? "story" : "stories") · ~\(mins) min listen"
+    }
+
+    /// One queued-story row with title / meta on the left and an
+    /// individual play button on the right. Tapping the row body
+    /// still opens the detail view via List's selection (we add a
+    /// `.tag` like every other story row); the trailing play button
+    /// is a separate target.
+    @ViewBuilder
+    private func readLaterPlaylistRow(item: ReadLaterStory) -> some View {
+        let isCurrent = readLaterPlayer.currentItem?.id == item.id
+
+        HStack(alignment: .center, spacing: 12) {
+            StoryRowView(
+                rank: nil,
+                story: item.asHNItem,
+                context: "Queued \(item.queuedAt.formatted(.relative(presentation: .named)))",
+                isRead: readIDs.contains(item.id),
+                isSaved: savedIDs.contains(item.id)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                if isCurrent {
+                    readLaterPlayer.toggle()
+                } else if let index = readLaterStories.firstIndex(where: { $0.id == item.id }) {
+                    readLaterPlayer.play(items: readLaterStories, startingAt: index)
+                }
+            } label: {
+                Image(systemName: rowPlayIconName(isCurrent: isCurrent))
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .tint(Theme.accent)
+            .accessibilityLabel(rowPlayAccessibilityLabel(isCurrent: isCurrent, title: item.title))
+            .disabled(item.playlistScript == nil)
+        }
+        .padding(.vertical, 2)
+        .background(
+            isCurrent
+                ? Theme.accent.opacity(0.08)
+                : Color.clear,
+            in: .rect(cornerRadius: 10, style: .continuous)
+        )
+        .tag(item.asHNItem)
+    }
+
+    private func rowPlayIconName(isCurrent: Bool) -> String {
+        guard isCurrent else { return "play.fill" }
+        return readLaterPlayer.state == .playing ? "pause.fill" : "play.fill"
+    }
+
+    private func rowPlayAccessibilityLabel(isCurrent: Bool, title: String) -> String {
+        if isCurrent {
+            return readLaterPlayer.state == .playing
+                ? "Pause \(title)"
+                : "Resume \(title)"
+        }
+        return "Play \(title)"
     }
 
     // MARK: - Mentions
@@ -959,14 +1091,18 @@ struct StoryListView: View {
         if let existing = readLaterStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(ReadLaterStory(
+            let queued = ReadLaterStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants
-            ))
+            )
+            modelContext.insert(queued)
+            // Pre-generate article + thread summaries so the
+            // playlist's Play All works offline.
+            SummaryPrefetcher.schedulePrefetch(for: queued, in: modelContext)
         }
     }
 
