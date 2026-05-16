@@ -75,6 +75,11 @@ final class ReadLaterStory {
     var score: Int?
     var descendants: Int?
     var queuedAt: Date
+    /// User-facing queue position. Drives the @Query sort and the
+    /// drag-to-reorder UI. Default value (`Int.max - id`) puts
+    /// freshly-migrated rows in roughly newest-first order until
+    /// the user reorders them.
+    var position: Int = 0
     /// Pre-generated article summary (Markdown). Populated by
     /// SummaryPrefetcher when the item is added; nil until the
     /// background task completes.
@@ -95,6 +100,7 @@ final class ReadLaterStory {
         score: Int?,
         descendants: Int?,
         queuedAt: Date = .now,
+        position: Int = 0,
         cachedArticleSummary: String? = nil,
         cachedThreadSummary: String? = nil,
         cachedSummaryGeneratedAt: Date? = nil
@@ -106,6 +112,7 @@ final class ReadLaterStory {
         self.score = score
         self.descendants = descendants
         self.queuedAt = queuedAt
+        self.position = position
         self.cachedArticleSummary = cachedArticleSummary
         self.cachedThreadSummary = cachedThreadSummary
         self.cachedSummaryGeneratedAt = cachedSummaryGeneratedAt

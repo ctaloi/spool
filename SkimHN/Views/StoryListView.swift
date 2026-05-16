@@ -27,7 +27,7 @@ struct StoryListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(sort: \SavedStory.savedAt, order: .reverse) private var savedStories: [SavedStory]
     @Query private var readStories: [ReadStory]
-    @Query(sort: \ReadLaterStory.queuedAt, order: .reverse) private var readLaterStories: [ReadLaterStory]
+    @Query(sort: \ReadLaterStory.position, order: .forward) private var readLaterStories: [ReadLaterStory]
     @State private var showLogin = false
     @State private var showSubmit = false
     /// Drives what the main list renders. Updated by the sidebar's
@@ -716,9 +716,9 @@ struct StoryListView: View {
         if readLaterStories.isEmpty {
             statusRow {
                 ContentUnavailableView(
-                    "Empty Queue",
-                    systemImage: "tray",
-                    description: Text("Tap the Read Later icon on any story to queue it up.")
+                    "Nothing to listen to yet",
+                    systemImage: "headphones",
+                    description: Text("Tap the Listen icon on any story to queue it for audio playback.")
                 )
             }
         } else {
@@ -730,6 +730,27 @@ struct StoryListView: View {
             ForEach(readLaterStories, id: \.id) { item in
                 readLaterPlaylistRow(item: item)
             }
+            .onMove(perform: moveReadLater)
+            .onDelete(perform: deleteReadLater)
+        }
+    }
+
+    /// Drag-to-reorder. Mutates the in-memory @Query array's
+    /// `position` fields so the next render comes back in the new
+    /// order. Persistence is automatic — SwiftData autosaves on
+    /// property changes within the bound model context.
+    private func moveReadLater(from source: IndexSet, to destination: Int) {
+        var stories = readLaterStories
+        stories.move(fromOffsets: source, toOffset: destination)
+        for (index, story) in stories.enumerated() {
+            story.position = index
+        }
+    }
+
+    /// Swipe-to-delete from the queue.
+    private func deleteReadLater(at offsets: IndexSet) {
+        for index in offsets {
+            modelContext.delete(readLaterStories[index])
         }
     }
 
@@ -1059,8 +1080,8 @@ struct StoryListView: View {
                 switchSource(to: .readLater)
             } label: {
                 Label(
-                    "Read Later",
-                    systemImage: isActive(.readLater) ? "checkmark" : "tray"
+                    "Listen",
+                    systemImage: isActive(.readLater) ? "checkmark" : "headphones"
                 )
             }
             if !followedUsers.isEmpty {
@@ -1113,8 +1134,8 @@ struct StoryListView: View {
                 toggleReadLater(story)
             } label: {
                 Label(
-                    readLaterIDs.contains(story.id) ? "Dequeue" : "Read Later",
-                    systemImage: readLaterIDs.contains(story.id) ? "tray.and.arrow.up" : "tray.and.arrow.down"
+                    readLaterIDs.contains(story.id) ? "Remove" : "Listen",
+                    systemImage: readLaterIDs.contains(story.id) ? "minus.circle.fill" : "headphones"
                 )
             }
             .tint(.purple)
@@ -1154,17 +1175,17 @@ struct StoryListView: View {
         if let existing = readLaterStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
+            let nextPosition = (readLaterStories.map(\.position).max() ?? -1) + 1
             let queued = ReadLaterStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
-                descendants: story.descendants
+                descendants: story.descendants,
+                position: nextPosition
             )
             modelContext.insert(queued)
-            // Pre-generate article + thread summaries so the
-            // playlist's Play All works offline.
             SummaryPrefetcher.schedulePrefetch(for: queued, in: modelContext)
         }
     }

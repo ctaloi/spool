@@ -31,7 +31,7 @@ enum MainFeedSource: Hashable {
         case .saved:
             return "Saved"
         case .readLater:
-            return "Read Later"
+            return "Listen"
         case .following:
             return "Following"
         case .mentions:
@@ -51,7 +51,7 @@ enum MainFeedSource: Hashable {
         case .saved:
             return "bookmark.fill"
         case .readLater:
-            return "tray.fill"
+            return "headphones"
         case .following:
             return "person.2.fill"
         case .mentions:

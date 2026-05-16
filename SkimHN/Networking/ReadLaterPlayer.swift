@@ -26,6 +26,31 @@ final class ReadLaterPlayer: NSObject, ObservableObject {
     @Published private(set) var currentIndex: Int?
     @Published private(set) var state: State = .idle
 
+    /// Cleaned-for-TTS script of the currently-playing item. Updated
+    /// on every `startUtterance` call. Used by the now-playing view
+    /// to show the spoken text with a highlight on the current
+    /// sentence.
+    @Published private(set) var currentScript: String = ""
+    /// Live progress fraction (0.0...1.0) within `currentScript`,
+    /// derived from the synth's `willSpeakRangeOfSpeechString`
+    /// callbacks.
+    @Published private(set) var currentProgress: Double = 0.0
+    /// Char index in `currentScript` where the synth is right now.
+    /// Drives the highlighted-sentence calculation in the player UI.
+    @Published private(set) var currentSpokenLocation: Int = 0
+
+    /// Playback rate (AVSpeechUtteranceDefaultSpeechRate = 0.5).
+    /// User-adjustable from the now-playing sheet.
+    @Published var rate: Float = AVSpeechUtteranceDefaultSpeechRate {
+        didSet {
+            guard oldValue != rate, state != .idle, let i = currentIndex else { return }
+            // Restart current utterance at the new rate. AVSpeech
+            // doesn't expose a live rate-change; stop + re-speak is
+            // the supported path.
+            startUtterance(at: i)
+        }
+    }
+
     /// Convenience accessor for the now-playing item.
     var currentItem: ReadLaterStory? {
         guard let i = currentIndex, queue.indices.contains(i) else { return nil }
@@ -108,9 +133,11 @@ final class ReadLaterPlayer: NSObject, ObservableObject {
         }
         synth.stopSpeaking(at: .immediate)
         currentIndex = index
+        currentProgress = 0
+        currentSpokenLocation = 0
         let item = queue[index]
         guard let script = item.playlistScript else {
-            // Nothing to read — jump to the next item.
+            currentScript = ""
             if index + 1 < queue.count {
                 startUtterance(at: index + 1)
             } else {
@@ -120,6 +147,7 @@ final class ReadLaterPlayer: NSObject, ObservableObject {
         }
         let cleaned = SummarySpeechController.stripMarkdown(script)
         guard !cleaned.isEmpty else {
+            currentScript = ""
             if index + 1 < queue.count {
                 startUtterance(at: index + 1)
             } else {
@@ -127,11 +155,12 @@ final class ReadLaterPlayer: NSObject, ObservableObject {
             }
             return
         }
+        currentScript = cleaned
         let utterance = AVSpeechUtterance(string: cleaned)
         utterance.voice = AVSpeechSynthesisVoice(
             language: AVSpeechSynthesisVoice.currentLanguageCode()
         )
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        utterance.rate = rate
         utterance.preUtteranceDelay = 0.15
         synth.speak(utterance)
     }
@@ -203,5 +232,26 @@ extension ReadLaterPlayer: AVSpeechSynthesizerDelegate {
     ) {
         // Cancellation paths handle their own state transitions.
         // Avoid double-firing here.
+    }
+
+    /// Fires for every word/range the synth is about to vocalize.
+    /// We use the range's location relative to the cleaned script
+    /// length to drive the read-only progress bar and the
+    /// highlighted-sentence text-follow in NowPlayingView.
+    nonisolated func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer,
+        willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        let totalLength = utterance.speechString.count
+        let location = characterRange.location
+        Task { @MainActor in
+            self.currentSpokenLocation = location
+            guard totalLength > 0 else {
+                self.currentProgress = 0
+                return
+            }
+            self.currentProgress = min(1.0, Double(location + characterRange.length) / Double(totalLength))
+        }
     }
 }

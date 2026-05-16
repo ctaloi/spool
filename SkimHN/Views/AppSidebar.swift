@@ -146,7 +146,7 @@ struct AppSidebar: View {
             Label("Saved", systemImage: "bookmark")
                 .badge(savedStories.count)
                 .tag(MainFeedSource.saved)
-            Label("Read Later", systemImage: "tray")
+            Label("Listen", systemImage: "headphones")
                 .badge(readLaterStories.count)
                 .tag(MainFeedSource.readLater)
             if !followedUsers.isEmpty {

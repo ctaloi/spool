@@ -11,10 +11,26 @@ import SwiftUI
 /// playing surface.
 struct ReadLaterMiniPlayer: View {
     @EnvironmentObject private var player: ReadLaterPlayer
+    @State private var showNowPlaying = false
 
     var body: some View {
         if player.isActive, let current = player.currentItem {
-            HStack(spacing: 12) {
+            miniBar(current: current)
+                .onTapGesture {
+                    showNowPlaying = true
+                }
+                .sheet(isPresented: $showNowPlaying) {
+                    NowPlayingView()
+                        .environmentObject(player)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func miniBar(current: ReadLaterStory) -> some View {
+        HStack(spacing: 12) {
                 Image(systemName: "waveform")
                     .font(.body)
                     .foregroundStyle(Theme.accent)
@@ -70,16 +86,15 @@ struct ReadLaterMiniPlayer: View {
                 .tint(.secondary)
                 .accessibilityLabel("Stop")
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(Color(.separator).opacity(0.4))
-                    .frame(height: 0.5)
-            }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color(.separator).opacity(0.4))
+                .frame(height: 0.5)
         }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private var progressLabel: String {

@@ -60,11 +60,11 @@ struct StoryDetailView: View {
                 Button {
                     toggleReadLater()
                 } label: {
-                    Image(systemName: isQueued ? "text.append" : "tray")
+                    Image(systemName: isQueued ? "checkmark.circle.fill" : "waveform.badge.plus")
                         .symbolEffect(.bounce, value: isQueued)
                         .contentTransition(.symbolEffect(.replace.downUp))
                 }
-                .accessibilityLabel(isQueued ? "Remove from Read Later" : "Read Later")
+                .accessibilityLabel(isQueued ? "Remove from Listen" : "Add to Listen")
                 .sensoryFeedback(.success, trigger: isQueued)
                 .keyboardShortcut("l", modifiers: .command)
 
@@ -593,13 +593,15 @@ struct StoryDetailView: View {
         if let existing = readLaterStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
+            let nextPosition = (readLaterStories.map(\.position).max() ?? -1) + 1
             let queued = ReadLaterStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
-                descendants: story.descendants
+                descendants: story.descendants,
+                position: nextPosition
             )
             modelContext.insert(queued)
             // Pre-generate the article + thread summaries so the
