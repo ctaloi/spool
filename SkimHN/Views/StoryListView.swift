@@ -19,6 +19,11 @@ struct StoryListView: View {
     @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.modelContext) private var modelContext
+    /// Compact-width check — drives whether we render our custom
+    /// sidebar-toggle button. On iPad regular the system already
+    /// provides one in the toolbar; piling on a second would just
+    /// be noise.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Query(sort: \SavedStory.savedAt, order: .reverse) private var savedStories: [SavedStory]
     @Query private var readStories: [ReadStory]
     @Query(sort: \ReadLaterStory.queuedAt, order: .reverse) private var readLaterStories: [ReadLaterStory]
@@ -315,10 +320,13 @@ struct StoryListView: View {
             // 2m ago" row.
             .navigationSubtitle(navigationSubtitle)
             .navigationBarTitleDisplayMode(.large)
-            // Feed picker as a small toolbar Menu — power-user shortcut
-            // for switching feeds without going back to the sidebar.
-            // System-rendered control, no custom chrome.
-            .toolbar { feedPickerToolbarItem }
+            // Hide the system back chevron only on compact; iPad
+            // regular still relies on the system sidebar toggle.
+            .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
+            .toolbar {
+                sidebarToggleToolbarItem
+                feedPickerToolbarItem
+            }
             // Native search drawer for feeds that support it. iOS
             // renders the search field in the navbar, handles focus,
             // cancellation, and the keyboard. Auto-hides on scroll.
@@ -359,6 +367,19 @@ struct StoryListView: View {
             }
             .sensoryFeedback(.success, trigger: savedStories.count)
             .sensoryFeedback(.selection, trigger: feedSource)
+    }
+
+    /// Replaces the default back chevron with a sidebar glyph in the
+    /// same leading slot. Dismiss pops the navigation stack — on
+    /// compact that returns to the sidebar (the root of the
+    /// collapsed NavigationStack). Native edge-swipe still works.
+    @ToolbarContentBuilder
+    private var sidebarToggleToolbarItem: some ToolbarContent {
+        if horizontalSizeClass == .compact {
+            ToolbarItem(placement: .topBarLeading) {
+                SidebarToggleButton()
+            }
+        }
     }
 
     /// Toolbar feed picker — single-tap shortcut to switch the active
@@ -1058,6 +1079,24 @@ private struct LoadingStateView: View {
 }
 
 // MARK: - Scroll-aware "at top" detection
+
+/// Three-line "show sidebar" button placed in the leading toolbar
+/// slot on compact width. Uses `\.dismiss` so the pop goes through
+/// the same NavigationStack mechanism the system back chevron would —
+/// edge-swipe back to sidebar still works, only the visible glyph
+/// changes.
+private struct SidebarToggleButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "line.3.horizontal")
+        }
+        .accessibilityLabel("Show Sidebar")
+    }
+}
 
 #Preview {
     StoryListView()
