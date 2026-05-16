@@ -68,83 +68,56 @@ struct NowPlayingView: View {
 
     // MARK: - Spoken text scroller
 
+    /// Splits the spoken script into sentence-sized rows so each
+    /// sentence gets its own ScrollView anchor. Without this, the
+    /// outer scrollTo can't actually navigate WITHIN one giant Text
+    /// view — every "scroll to current" would be a no-op.
+    private var sentences: [Sentence] {
+        Sentence.split(player.currentScript)
+    }
+
+    /// Index of the sentence currently being spoken. Drives both
+    /// the highlight style and the scroll target.
+    private var currentSentenceIndex: Int {
+        Sentence.indexContaining(
+            location: player.currentSpokenLocation,
+            in: sentences
+        )
+    }
+
     @ViewBuilder
     private var spokenTextScroller: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text(highlightedText)
-                    .font(Theme.Typography.body)
-                    .lineSpacing(5)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 12)
-                    .id("spoken-text")
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(sentences.enumerated()), id: \.offset) { idx, sentence in
+                        Text(sentence.text)
+                            .font(Theme.Typography.body)
+                            .foregroundStyle(foreground(for: idx))
+                            .fontWeight(idx == currentSentenceIndex ? .semibold : .regular)
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(idx)
+                    }
+                }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 16)
             }
-            // Each time the synth jumps ahead enough, scroll the
-            // current sentence back near the top of the visible
-            // area. 200 chars ≈ one paragraph-ish of pacing.
-            .onChange(of: player.currentSpokenLocation / 200) { _, _ in
+            .onChange(of: currentSentenceIndex) { _, new in
                 withAnimation(.easeInOut(duration: 0.4)) {
-                    proxy.scrollTo("spoken-text", anchor: .top)
+                    proxy.scrollTo(new, anchor: .center)
                 }
             }
         }
     }
 
-    /// Builds an AttributedString that bolds the currently-spoken
-    /// sentence — gives the listener a visual anchor without
-    /// repainting the whole view on every word.
-    private var highlightedText: AttributedString {
-        var attr = AttributedString(player.currentScript)
-        guard !player.currentScript.isEmpty else { return attr }
-
-        let location = player.currentSpokenLocation
-        let script = player.currentScript
-        // Find the sentence containing the current speech location:
-        // search backwards for ., !, or ? from `location`.
-        let nsScript = script as NSString
-        let upTo = min(location, nsScript.length)
-        let leadingRange = NSRange(location: 0, length: upTo)
-        let terminators = CharacterSet(charactersIn: ".!?")
-        let leadingSubstr = nsScript.substring(with: leadingRange)
-        let lastTerminator = leadingSubstr.lastIndex(where: { ".!?".contains($0) })
-        let sentenceStart = lastTerminator.map { leadingSubstr.index(after: $0) } ?? leadingSubstr.startIndex
-        let sentenceStartOffset = leadingSubstr.distance(
-            from: leadingSubstr.startIndex,
-            to: sentenceStart
-        )
-
-        let trailingStart = upTo
-        let trailingRange = NSRange(location: trailingStart,
-                                     length: max(0, nsScript.length - trailingStart))
-        let trailing = nsScript.substring(with: trailingRange)
-        let nextTerminatorOffset = trailing.firstIndex(where: { ".!?".contains($0) })
-            .map { trailing.distance(from: trailing.startIndex, to: $0) + 1 }
-            ?? trailing.count
-        let sentenceEndOffset = trailingStart + nextTerminatorOffset
-
-        let hlStart = script.utf16.index(script.utf16.startIndex, offsetBy: sentenceStartOffset)
-        let hlEnd = script.utf16.index(script.utf16.startIndex, offsetBy: min(sentenceEndOffset, script.utf16.count))
-
-        guard let lower = AttributedString.Index(hlStart, within: attr),
-              let upper = AttributedString.Index(hlEnd, within: attr),
-              lower < upper else {
-            _ = terminators
-            return attr
-        }
-        attr[lower..<upper].foregroundColor = Color.primary
-        attr[lower..<upper].font = Theme.Typography.body.weight(.semibold)
-
-        // Dim everything else so the spoken sentence reads as the
-        // anchor.
-        let beforeRange = attr.startIndex..<lower
-        attr[beforeRange].foregroundColor = Color.secondary
-
-        let afterRange = upper..<attr.endIndex
-        attr[afterRange].foregroundColor = Color(white: 0.4)
-
-        return attr
+    /// Tri-state foreground: bright for the current sentence, dim
+    /// for spoken/upcoming. Gives a clear focal point without the
+    /// rest of the text disappearing.
+    private func foreground(for idx: Int) -> Color {
+        if idx == currentSentenceIndex { return .primary }
+        if idx < currentSentenceIndex { return .secondary }
+        return Color(white: 0.45)
     }
 
     // MARK: - Controls
@@ -229,6 +202,57 @@ struct NowPlayingView: View {
     private var hasNext: Bool {
         guard let i = player.currentIndex else { return false }
         return i + 1 < player.queue.count
+    }
+
+    // MARK: - Sentence splitter
+
+    /// One sentence-shaped chunk of the spoken script with its
+    /// character-range anchors. Lets us render each sentence as a
+    /// separate Text row (so ScrollViewReader's scrollTo actually
+    /// navigates) AND figure out which one is currently being read
+    /// from the synth's char-range delegate output.
+    private struct Sentence {
+        let text: String
+        let start: Int
+        let end: Int
+
+        /// Walk the script char-by-char, cutting on `.!?` or end
+        /// of string. Whitespace at the head of each sentence is
+        /// trimmed for display but the original offsets are
+        /// preserved so we can match the speech location.
+        static func split(_ script: String) -> [Sentence] {
+            guard !script.isEmpty else { return [] }
+            var result: [Sentence] = []
+            let chars = Array(script)
+            var segmentStart = 0
+            for (i, char) in chars.enumerated() {
+                let atEnd = i == chars.count - 1
+                if ".!?".contains(char) || atEnd {
+                    let endExclusive = i + 1
+                    let raw = String(chars[segmentStart..<endExclusive])
+                    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        result.append(Sentence(
+                            text: trimmed,
+                            start: segmentStart,
+                            end: endExclusive
+                        ))
+                    }
+                    segmentStart = endExclusive
+                }
+            }
+            return result
+        }
+
+        /// Returns the index of the sentence containing the given
+        /// character location, or 0 / last as a safe fallback.
+        static func indexContaining(location: Int, in sentences: [Sentence]) -> Int {
+            guard !sentences.isEmpty else { return 0 }
+            for (idx, sent) in sentences.enumerated() {
+                if location < sent.end { return idx }
+            }
+            return sentences.count - 1
+        }
     }
 
     // MARK: - Speed picker plumbing

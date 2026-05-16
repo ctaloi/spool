@@ -363,6 +363,7 @@ struct StoryListView: View {
             }
             .task {
                 SavedStoryIndexer.syncAll(savedStories)
+                backfillReadLaterPositionsIfNeeded()
             }
             // Phase 6: when the playlist finishes an item, pluck
             // it from the Read Later queue. This is what makes
@@ -732,6 +733,24 @@ struct StoryListView: View {
             }
             .onMove(perform: moveReadLater)
             .onDelete(perform: deleteReadLater)
+        }
+    }
+
+    /// Upgrade path: rows that existed before we added `position`
+    /// all land with position = 0 by SwiftData's default-value
+    /// migration. That makes the @Query sort ambiguous and renders
+    /// the queue in arbitrary order. On every launch, check
+    /// whether more than one row shares position 0 — if so,
+    /// backfill positions in queuedAt-newest-first order so the
+    /// queue matches what the user remembers.
+    private func backfillReadLaterPositionsIfNeeded() {
+        let zeroes = readLaterStories.filter { $0.position == 0 }
+        guard zeroes.count > 1 else { return }
+        let sorted = readLaterStories.sorted { lhs, rhs in
+            lhs.queuedAt > rhs.queuedAt
+        }
+        for (index, story) in sorted.enumerated() {
+            story.position = index
         }
     }
 
