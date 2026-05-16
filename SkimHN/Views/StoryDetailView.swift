@@ -9,6 +9,7 @@ struct StoryDetailView: View {
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.modelContext) private var modelContext
     @Query private var savedStories: [SavedStory]
+    @Query private var readLaterStories: [ReadLaterStory]
     /// Single piece of state driving every modal sheet on this view.
     /// Replaces seven separate `@State` flags whose combined surface
     /// area let two sheets race for presentation when bindings flipped
@@ -55,10 +56,18 @@ struct StoryDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .animation(.easeInOut(duration: 0.5), value: heroAccent)
         .toolbar {
-            // Group all three trailing actions so iOS lays them out
-            // with the standard toolbar spacing + collapses them into
-            // an overflow on tight widths.
             ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    toggleReadLater()
+                } label: {
+                    Image(systemName: isQueued ? "text.append" : "tray")
+                        .symbolEffect(.bounce, value: isQueued)
+                        .contentTransition(.symbolEffect(.replace.downUp))
+                }
+                .accessibilityLabel(isQueued ? "Remove from Read Later" : "Read Later")
+                .sensoryFeedback(.success, trigger: isQueued)
+                .keyboardShortcut("l", modifiers: .command)
+
                 Button {
                     toggleSaved()
                 } label: {
@@ -80,16 +89,6 @@ struct StoryDetailView: View {
                 .accessibilityLabel("Share Story")
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .sensoryFeedback(.impact(weight: .light), trigger: shareTapCount)
-
-                if let urlString = viewModel.story.url, let url = URL(string: urlString) {
-                    Button {
-                        presentedSheet = .safari(url)
-                    } label: {
-                        Image(systemName: "safari")
-                    }
-                    .accessibilityLabel("Open Article")
-                    .keyboardShortcut("o", modifiers: .command)
-                }
             }
         }
         .onAppear {
@@ -122,6 +121,10 @@ struct StoryDetailView: View {
 
     private var isSaved: Bool {
         savedStories.contains { $0.id == viewModel.story.id }
+    }
+
+    private var isQueued: Bool {
+        readLaterStories.contains { $0.id == viewModel.story.id }
     }
 
     /// Bridges the consolidated `presentedSheet` state back to the
@@ -569,6 +572,7 @@ struct StoryDetailView: View {
         let story = viewModel.story
         if let existing = savedStories.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
+            SavedStoryIndexer.deindex(story.id)
         } else {
             let saved = SavedStory(
                 id: story.id,
@@ -580,6 +584,23 @@ struct StoryDetailView: View {
             )
             modelContext.insert(saved)
             SummaryPrefetcher.schedulePrefetch(for: saved, in: modelContext)
+            SavedStoryIndexer.index(saved)
+        }
+    }
+
+    private func toggleReadLater() {
+        let story = viewModel.story
+        if let existing = readLaterStories.first(where: { $0.id == story.id }) {
+            modelContext.delete(existing)
+        } else {
+            modelContext.insert(ReadLaterStory(
+                id: story.id,
+                title: story.title ?? "(untitled)",
+                urlString: story.url,
+                author: story.by,
+                score: story.score,
+                descendants: story.descendants
+            ))
         }
     }
 }
