@@ -442,20 +442,17 @@ struct AppSidebar: View {
             HStack {
                 Label(label, systemImage: icon)
                     .foregroundStyle(.primary)
-                Spacer()
-                if let trailingCount {
-                    Text(trailingCount.formatted())
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
                 if isActive {
+                    Spacer()
                     Image(systemName: "checkmark")
                         .font(.footnote.weight(.bold))
                         .foregroundStyle(Theme.accent)
                 }
             }
         }
+        // Native iOS badge — renders the count as the system's
+        // standard trailing-pill, matching Mail's mailbox counts.
+        .badge(trailingCount ?? 0)
     }
 
     private static var versionString: String {

@@ -37,7 +37,6 @@ struct StoryListView: View {
     /// awaits.
     @State private var switchingFeed: Bool = false
     @EnvironmentObject private var router: AppRouter
-    @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -274,14 +273,23 @@ struct StoryListView: View {
         content
             // Native large title — collapses to inline as the user
             // scrolls, the standard iOS pattern that Mail / Settings
-            // / Notes all use. Replaces the previous custom hero
-            // header + inline-overlay machinery.
+            // / Notes all use.
             .navigationTitle(isSearching ? "Search" : feedSource.displayTitle)
             .navigationBarTitleDisplayMode(.large)
             // Feed picker as a small toolbar Menu — power-user shortcut
             // for switching feeds without going back to the sidebar.
             // System-rendered control, no custom chrome.
             .toolbar { feedPickerToolbarItem }
+            // Native search drawer for feeds that support it. iOS
+            // renders the search field in the navbar, handles focus,
+            // cancellation, and the keyboard. Auto-hides on scroll.
+            .searchable(
+                text: $searchText,
+                placement: feedSource.supportsSearch ? .navigationBarDrawer(displayMode: .automatic) : .toolbar,
+                prompt: "Search Hacker News"
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .refreshable {
                 await refreshCurrentSource()
             }
@@ -325,13 +333,6 @@ struct StoryListView: View {
     @ViewBuilder
     private var content: some View {
         List(selection: $selectedStory) {
-            if feedSource.supportsSearch {
-                inlineSearchField
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 8, trailing: 18))
-                    .selectionDisabled()
-            }
-
             if isSearching && feedSource.supportsSearch {
                 searchRows
             } else {
@@ -989,52 +990,6 @@ struct StoryListView: View {
             .selectionDisabled()
     }
 
-    /// Inline glass search field that lives just below the hero. Replaces
-    /// the system `.searchable` drawer so the search affordance sits
-    /// underneath the title rather than between the title and the
-    /// toolbar. Scrolls away with the rest of the header rows.
-    private var inlineSearchField: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.body.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            TextField("Search Hacker News", text: $searchText)
-                .textFieldStyle(.plain)
-                .submitLabel(.search)
-                .focused($searchFieldFocused)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-
-            if searchFieldFocused {
-                Button("Cancel") {
-                    searchText = ""
-                    searchFieldFocused = false
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.accent)
-                .buttonStyle(.plain)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .glassEffect(.regular, in: Capsule(style: .continuous))
-        .animation(.easeInOut(duration: 0.18), value: searchFieldFocused)
-        .animation(.easeInOut(duration: 0.18), value: searchText.isEmpty)
-    }
 }
 
 // MARK: - Loading state
