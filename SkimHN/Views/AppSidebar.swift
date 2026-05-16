@@ -214,18 +214,12 @@ struct AppSidebar: View {
             .tint(Theme.accent)
 
             Stepper(value: $minStoryComments, in: 0...100, step: 5) {
-                Label {
-                    HStack {
-                        Text("Minimum Comments")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Text(minStoryComments == 0 ? "Off" : "\(minStoryComments)+")
-                            .font(.footnote.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .contentTransition(.numericText(value: Double(minStoryComments)))
-                    }
-                } icon: {
-                    Image(systemName: "bubble.left.and.bubble.right")
+                LabeledContent {
+                    Text(minStoryComments == 0 ? "Off" : "\(minStoryComments)+")
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(minStoryComments)))
+                } label: {
+                    Label("Minimum Comments", systemImage: "bubble.left.and.bubble.right")
                 }
             }
             .tint(Theme.accent)
@@ -307,15 +301,10 @@ struct AppSidebar: View {
                 }
             }
         } label: {
-            Label {
-                HStack {
-                    Text("Send Test Notification")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    notifierTrailing
-                }
-            } icon: {
-                Image(systemName: "bell.badge")
+            LabeledContent {
+                notifierTrailing
+            } label: {
+                Label("Send Test Notification", systemImage: "bell.badge")
             }
         }
     }
@@ -333,16 +322,15 @@ struct AppSidebar: View {
                 )
             }
         } label: {
-            Label {
-                HStack {
+            LabeledContent {
+                bgRefreshTrailing
+            } label: {
+                Label {
                     Text("Test BG Refresh Now")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    bgRefreshTrailing
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle")
+                        .symbolEffect(.rotate, value: bgRefreshOutcome != nil)
                 }
-            } icon: {
-                Image(systemName: "arrow.clockwise.circle")
-                    .symbolEffect(.rotate, value: bgRefreshOutcome != nil)
             }
         }
         .sensoryFeedback(.success, trigger: bgRefreshOutcome != nil)

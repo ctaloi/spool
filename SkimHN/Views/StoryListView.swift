@@ -275,6 +275,11 @@ struct StoryListView: View {
             // scrolls, the standard iOS pattern that Mail / Settings
             // / Notes all use.
             .navigationTitle(isSearching ? "Search" : feedSource.displayTitle)
+            // iOS 26 navigation subtitle — system-rendered second line
+            // under the large title (and the inline title once it
+            // collapses). Replaces the in-list "30 stories · Updated
+            // 2m ago" row.
+            .navigationSubtitle(navigationSubtitle)
             .navigationBarTitleDisplayMode(.large)
             // Feed picker as a small toolbar Menu — power-user shortcut
             // for switching feeds without going back to the sidebar.
@@ -366,17 +371,6 @@ struct StoryListView: View {
 
     @ViewBuilder
     private var feedRows: some View {
-        // Only render the stats line once we have stories. During a
-        // feed switch / cold load, the line would otherwise show
-        // "0 stories · Updated 2m ago" with the previous feed's
-        // timestamp — reads as broken.
-        if !viewModel.stories.isEmpty {
-            feedContextHeader
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 2, leading: 18, bottom: 10, trailing: 18))
-                .selectionDisabled()
-        }
-
         // Digest is AI-driven — only ever render on devices where
         // the model is actually available. digest.canRun checks the
         // same SummaryService.availability under the hood, so the
@@ -721,24 +715,29 @@ struct StoryListView: View {
 
     /// Thin stats row between the search drawer and the first story.
     /// Feed name lives in the hero now, so this is just
-    /// "30 stories · Updated 2m ago" — quiet, scrolls away with the list.
-    private var feedContextHeader: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            Text("\(viewModel.stories.count) stories")
-                .monospacedDigit()
-                .contentTransition(.numericText(value: Double(viewModel.stories.count)))
+    /// String fed to iOS 26's `.navigationSubtitle` modifier so the
+    /// "N stories · Updated Xm ago" line lives in the native title
+    /// region instead of a custom in-list row.
+    private var navigationSubtitle: String {
+        guard !viewModel.stories.isEmpty else { return "" }
+        switch feedSource {
+        case .category:
+            var parts = ["\(viewModel.stories.count) stories"]
             if let date = viewModel.lastReloadedAt {
-                Text(verbatim: "·")
-                    .foregroundStyle(.tertiary)
-                Text("Updated \(date, format: .relative(presentation: .named))")
+                parts.append(date.formatted(.relative(presentation: .named)))
             }
-            Spacer(minLength: 0)
+            return parts.joined(separator: " · ")
+        case .trending:
+            return "\(trending.items.count) trending"
+        case .bestOf:
+            return "\(browse.results.count) stories"
+        case .following:
+            return "\(following.items.count) recent"
+        case .mentions:
+            return "\(mentions.items.count) mentions"
+        case .saved, .readLater:
+            return ""
         }
-        .font(.footnote)
-        .foregroundStyle(.secondary)
     }
 
     /// The shared menu content used by both the big hero selector and
