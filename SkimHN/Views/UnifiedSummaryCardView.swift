@@ -161,15 +161,11 @@ struct UnifiedSummaryCardView: View {
                 speech.toggle(text: combinedSpeechText)
             } label: {
                 Image(systemName: speakerIconName)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Circle().stroke(Theme.accent.opacity(0.55), lineWidth: 1)
-                    )
                     .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .tint(Theme.accent)
             .accessibilityLabel(speakerAccessibilityLabel)
         }
     }

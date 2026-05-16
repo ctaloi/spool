@@ -217,18 +217,17 @@ struct StoryListView: View {
     /// Quiet pill that takes the digest card's row slot when no
     /// digest is currently visible. Tapping regenerates and reveals
     /// the digest — gives the user a way back in without scrolling
-    /// or hunting through a menu.
+    /// or hunting through a menu. Uses iOS 26's Liquid Glass button
+    /// style so the system draws the translucent capsule + pressed
+    /// state.
     private var digestRecallPill: some View {
         Button(action: recallDigest) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.accent)
                     .symbolEffect(.pulse, options: .nonRepeating)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Today's Digest")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
                     Text("What's on HN today, in a paragraph.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -236,18 +235,13 @@ struct StoryListView: View {
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.up.right")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.accent.opacity(0.7))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Theme.accent.opacity(0.18), lineWidth: 0.5)
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .tint(Theme.accent)
         .accessibilityHint("Reveals a generated summary of today's top stories.")
     }
 

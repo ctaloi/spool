@@ -140,9 +140,10 @@ struct SummarySectionDivider: View {
     }
 }
 
-/// Shared outline-only action button — the un-tinted-fill stroked
-/// capsule used as the primary CTA inside the unified summary card,
-/// and as a fallback affordance in error states.
+/// Primary CTA inside the unified summary card and a fallback
+/// affordance in error states. Uses iOS 26's `.glass` button style —
+/// the system handles capsule shape, translucent background, pressed
+/// state, and accessibility scaling. We just provide the label + tint.
 struct OutlineActionButton: View {
     let title: String
     let systemImage: String
@@ -151,23 +152,16 @@ struct OutlineActionButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Theme.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(Theme.accent.opacity(0.55), lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
-        .contentShape(Capsule(style: .continuous))
+        .buttonStyle(.glass)
+        .controlSize(.small)
+        .tint(Theme.accent)
     }
 }
 
-/// Icon-only outline variant — same stroked-circle look as
-/// `OutlineActionButton`, used for the "Summarize Again" refresh
-/// affordance and other small icon actions inside summary cards.
+/// Icon-only Liquid Glass button — used for the "Summarize Again"
+/// refresh affordance and other small icon actions. Same native
+/// `.glass` style; the symbol bounces on each tap via tapCount.
 struct OutlineIconButton: View {
     let systemImage: String
     let accessibilityLabel: String
@@ -180,15 +174,11 @@ struct OutlineIconButton: View {
             action()
         } label: {
             Image(systemName: systemImage)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Theme.accent)
                 .symbolEffect(.rotate, value: tapCount)
-                .frame(width: 28, height: 28)
-                .overlay(
-                    Circle().stroke(Theme.accent.opacity(0.55), lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glass)
+        .controlSize(.small)
+        .tint(Theme.accent)
         .accessibilityLabel(accessibilityLabel)
     }
 }

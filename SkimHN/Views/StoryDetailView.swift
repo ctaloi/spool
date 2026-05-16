@@ -55,7 +55,10 @@ struct StoryDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .animation(.easeInOut(duration: 0.5), value: heroAccent)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            // Group all three trailing actions so iOS lays them out
+            // with the standard toolbar spacing + collapses them into
+            // an overflow on tight widths.
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     toggleSaved()
                 } label: {
@@ -66,9 +69,7 @@ struct StoryDetailView: View {
                 .accessibilityLabel(isSaved ? "Unsave Story" : "Save Story")
                 .sensoryFeedback(.success, trigger: isSaved)
                 .keyboardShortcut("s", modifiers: .command)
-            }
 
-            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     shareTapCount += 1
                     presentedSheet = .shareOptions
@@ -79,11 +80,7 @@ struct StoryDetailView: View {
                 .accessibilityLabel("Share Story")
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .sensoryFeedback(.impact(weight: .light), trigger: shareTapCount)
-            }
 
-            // Cmd+O / Cmd+Return — open the article in Safari without
-            // having to scroll back to the header chip.
-            ToolbarItem(placement: .topBarTrailing) {
                 if let urlString = viewModel.story.url, let url = URL(string: urlString) {
                     Button {
                         presentedSheet = .safari(url)
@@ -201,9 +198,8 @@ struct StoryDetailView: View {
         }
     }
 
-    /// Outline-only header chip — stroked capsule, no fill. Matches the
-    /// AI summary card's outline buttons so the header reads as a quiet
-    /// set of action affordances rather than a tinted toolbar.
+    /// Header chip — Liquid Glass on iOS 26. Same affordance, drawn
+    /// by the system: translucent capsule, pressed state, motion.
     @ViewBuilder
     private func outlineChip(
         title: String,
@@ -213,18 +209,11 @@ struct StoryDetailView: View {
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(tint)
                 .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(tint.opacity(0.55), lineWidth: 1)
-                )
         }
-        .buttonStyle(.plain)
-        .contentShape(Capsule(style: .continuous))
+        .buttonStyle(.glass)
+        .controlSize(.small)
+        .tint(tint)
     }
 
     /// Hero banner. Three states:
@@ -497,16 +486,10 @@ struct StoryDetailView: View {
                     presentedSheet = .threadQuestion
                 } label: {
                     Label("Ask", systemImage: "questionmark.bubble")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(Theme.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(Theme.accent.opacity(0.55), lineWidth: 1)
-                        )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .tint(Theme.accent)
                 .accessibilityLabel("Ask a question about this thread")
             }
         }
