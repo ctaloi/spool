@@ -1,13 +1,15 @@
 import SwiftUI
 import SwiftData
 
-/// The leading column of the unified NavigationSplitView. On iPhone the
-/// user reaches it via edge-swipe or the sidebar toolbar button; on iPad
-/// it's the always-visible left column. Every selection flows through a
-/// single `onSelect(MainFeedSource)` callback so the main list can
-/// react uniformly — no per-section sheet plumbing.
+/// The leading column of the unified NavigationSplitView. Feed rows
+/// are tagged with their MainFeedSource and participate in the
+/// List's selection binding — that's what makes
+/// NavigationSplitView auto-push the content column on compact
+/// width when the user taps. Sign-in / submit / about / settings
+/// rows stay as plain Buttons since they fire actions rather than
+/// changing the selected feed.
 struct AppSidebar: View {
-    let activeSource: MainFeedSource
+    @Binding var selection: MainFeedSource?
     @EnvironmentObject private var auth: AuthViewModel
     @Query private var savedStories: [SavedStory]
     @Query private var readLaterStories: [ReadLaterStory]
@@ -35,12 +37,9 @@ struct AppSidebar: View {
     let onSignIn: () -> Void
     let onSignOut: () -> Void
     let onSubmit: () -> Void
-    /// Routes every list-source pick (categories, browse, library)
-    /// through one handler. The owner is expected to flip its own
-    /// `feedSource` state.
-    let onSelect: (MainFeedSource) -> Void
+
     var body: some View {
-        List {
+        List(selection: $selection) {
             accountSection
             categoriesSection
             browseSection
@@ -123,13 +122,8 @@ struct AppSidebar: View {
     private var categoriesSection: some View {
         Section("Categories") {
             ForEach(HNStoryFeed.allCases) { feed in
-                sidebarRow(
-                    label: feed.navigationTitle,
-                    icon: feed.icon,
-                    isActive: activeSource == .category(feed)
-                ) {
-                    onSelect(.category(feed))
-                }
+                Label(feed.navigationTitle, systemImage: feed.icon)
+                    .tag(MainFeedSource.category(feed))
             }
         }
     }
@@ -137,21 +131,11 @@ struct AppSidebar: View {
     @ViewBuilder
     private var browseSection: some View {
         Section("Browse") {
-            sidebarRow(
-                label: "Trending",
-                icon: "chart.line.uptrend.xyaxis",
-                isActive: activeSource == .trending
-            ) {
-                onSelect(.trending)
-            }
+            Label("Trending", systemImage: "chart.line.uptrend.xyaxis")
+                .tag(MainFeedSource.trending)
             ForEach(BestOfWindow.allCases) { window in
-                sidebarRow(
-                    label: "Best of \(window.title)",
-                    icon: window.icon,
-                    isActive: activeSource == .bestOf(window)
-                ) {
-                    onSelect(.bestOf(window))
-                }
+                Label("Best of \(window.title)", systemImage: window.icon)
+                    .tag(MainFeedSource.bestOf(window))
             }
         }
     }
@@ -159,41 +143,20 @@ struct AppSidebar: View {
     @ViewBuilder
     private var librarySection: some View {
         Section("Library") {
-            sidebarRow(
-                label: "Saved",
-                icon: "bookmark",
-                isActive: activeSource == .saved,
-                trailingCount: savedStories.count
-            ) {
-                onSelect(.saved)
-            }
-            sidebarRow(
-                label: "Read Later",
-                icon: "tray",
-                isActive: activeSource == .readLater,
-                trailingCount: readLaterStories.count
-            ) {
-                onSelect(.readLater)
-            }
+            Label("Saved", systemImage: "bookmark")
+                .badge(savedStories.count)
+                .tag(MainFeedSource.saved)
+            Label("Read Later", systemImage: "tray")
+                .badge(readLaterStories.count)
+                .tag(MainFeedSource.readLater)
             if !followedUsers.isEmpty {
-                sidebarRow(
-                    label: "Following",
-                    icon: "person.2",
-                    isActive: activeSource == .following,
-                    trailingCount: followedUsers.count
-                ) {
-                    onSelect(.following)
-                }
+                Label("Following", systemImage: "person.2")
+                    .badge(followedUsers.count)
+                    .tag(MainFeedSource.following)
             }
             if auth.isLoggedIn {
-                sidebarRow(
-                    label: "Mentions",
-                    icon: "at",
-                    isActive: activeSource == .mentions,
-                    trailingCount: nil
-                ) {
-                    onSelect(.mentions)
-                }
+                Label("Mentions", systemImage: "at")
+                    .tag(MainFeedSource.mentions)
             }
         }
     }
@@ -413,34 +376,6 @@ struct AppSidebar: View {
                 }
             }
         }
-    }
-
-    /// Shared row layout for every selectable sidebar entry — checkmark
-    /// on the trailing edge when the source matches, optional count for
-    /// library rows.
-    @ViewBuilder
-    private func sidebarRow(
-        label: String,
-        icon: String,
-        isActive: Bool,
-        trailingCount: Int? = nil,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack {
-                Label(label, systemImage: icon)
-                    .foregroundStyle(.primary)
-                if isActive {
-                    Spacer()
-                    Image(systemName: "checkmark")
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(Theme.accent)
-                }
-            }
-        }
-        // Native iOS badge — renders the count as the system's
-        // standard trailing-pill, matching Mail's mailbox counts.
-        .badge(trailingCount ?? 0)
     }
 
     private static var versionString: String {

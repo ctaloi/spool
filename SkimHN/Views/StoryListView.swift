@@ -82,11 +82,10 @@ struct StoryListView: View {
     var body: some View {
         NavigationSplitView {
             AppSidebar(
-                activeSource: feedSource,
+                selection: sidebarSelection,
                 onSignIn: { showLogin = true },
                 onSignOut: { Task { await auth.logout() } },
-                onSubmit: { showSubmit = true },
-                onSelect: { source in switchSource(to: source) }
+                onSubmit: { showSubmit = true }
             )
             .environmentObject(auth)
         } content: {
@@ -141,6 +140,22 @@ struct StoryListView: View {
         .sheet(isPresented: $showSubmit) {
             SubmitView().environmentObject(auth)
         }
+    }
+
+    /// Optional binding the sidebar's `List(selection:)` writes
+    /// when the user taps a tagged row. Tapping flows through
+    /// switchSource so we get the synchronous `switchingFeed` flag
+    /// that prevents an empty-state flash on the first frame after
+    /// the swap.
+    private var sidebarSelection: Binding<MainFeedSource?> {
+        Binding(
+            get: { feedSource },
+            set: { newValue in
+                if let newValue, newValue != feedSource {
+                    switchSource(to: newValue)
+                }
+            }
+        )
     }
 
     /// Centralized switch. Sets `switchingFeed` synchronously so the
