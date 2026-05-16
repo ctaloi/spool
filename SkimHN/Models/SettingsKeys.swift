@@ -27,4 +27,9 @@ enum SettingsKeys {
     /// Hides drive-by submissions for users who only want stories
     /// with traction. Applies to the same feeds as hideReadStories.
     static let minStoryComments = "settings.minStoryComments"
+
+    /// Comma-separated list of the user's most recent search queries
+    /// (newest first, capped at 8). Surfaced as suggestions in the
+    /// system `.searchable` field via `.searchSuggestions`.
+    static let recentSearches = "settings.recentSearches"
 }

@@ -15,6 +15,7 @@ struct StoryListView: View {
     @AppStorage(SettingsKeys.lastDigestDismissedDay) private var lastDigestDismissedDay: Int = 0
     @AppStorage(SettingsKeys.hideReadStories) private var hideReadStories: Bool = false
     @AppStorage(SettingsKeys.minStoryComments) private var minStoryComments: Int = 0
+    @AppStorage(SettingsKeys.recentSearches) private var recentSearchesRaw: String = ""
     @State private var showDigest: Bool = false
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.modelContext) private var modelContext
@@ -40,6 +41,24 @@ struct StoryListView: View {
 
     private var isSearching: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var recentSearches: [String] {
+        recentSearchesRaw
+            .split(separator: "\u{0001}", omittingEmptySubsequences: true)
+            .map(String.init)
+    }
+
+    /// Push `query` onto the recent-searches MRU list. Capped at 8.
+    /// Separator is the Unicode SOH control character so any
+    /// search term containing punctuation round-trips cleanly.
+    private func remember(searchQuery query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count >= 2 else { return }
+        var list = recentSearches.filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+        list.insert(trimmed, at: 0)
+        if list.count > 8 { list = Array(list.prefix(8)) }
+        recentSearchesRaw = list.joined(separator: "\u{0001}")
     }
 
     private var savedIDs: Set<Int> { Set(savedStories.map(\.id)) }
@@ -293,6 +312,17 @@ struct StoryListView: View {
                 placement: feedSource.supportsSearch ? .navigationBarDrawer(displayMode: .automatic) : .toolbar,
                 prompt: "Search Hacker News"
             )
+            .searchSuggestions {
+                if searchText.isEmpty {
+                    ForEach(recentSearches, id: \.self) { suggestion in
+                        Label(suggestion, systemImage: "clock.arrow.circlepath")
+                            .searchCompletion(suggestion)
+                    }
+                }
+            }
+            .onSubmit(of: .search) {
+                remember(searchQuery: searchText)
+            }
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .refreshable {
@@ -353,6 +383,9 @@ struct StoryListView: View {
             }
         }
         .listStyle(.plain)
+        // iOS 26 — give the navbar a soft Liquid Glass scroll edge
+        // effect at the top of the list. Matches Mail / Notes.
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .animation(.easeInOut(duration: 0.18), value: isSearching)
         // Slightly slower than search toggle — feed switches are
         // bigger conceptual changes and a 0.28s crossfade reads as
