@@ -9,11 +9,11 @@ struct StoryDetailView: View {
     @EnvironmentObject private var auth: AuthViewModel
     @Environment(\.modelContext) private var modelContext
     @Query private var savedStories: [SavedStory]
-    @State private var safariURL: PresentedURL?
-    @State private var showLogin = false
-    @State private var replyTarget: CommentNode?
-    @State private var profileTarget: String?
-    @State private var domainTarget: String?
+    /// Single piece of state driving every modal sheet on this view.
+    /// Replaces seven separate `@State` flags whose combined surface
+    /// area let two sheets race for presentation when bindings flipped
+    /// in the same render pass.
+    @State private var presentedSheet: DetailSheet?
     @State private var heroImage: UIImage?
     @State private var heroAccent: Color?
     /// `true` once we've finished asking the article for an OG image,
@@ -21,8 +21,6 @@ struct StoryDetailView: View {
     /// skeleton while we're looking, then disappear cleanly when we
     /// learn the article has no image — instead of pulsing forever.
     @State private var heroLookupComplete: Bool = false
-    @State private var showThreadQuestion: Bool = false
-    @State private var showShareOptions: Bool = false
     /// Bumps each time the user taps Share — keyed by the symbol-
     /// effect so the icon only bounces on press, never on close.
     @State private var shareTapCount: Int = 0
@@ -73,7 +71,7 @@ struct StoryDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     shareTapCount += 1
-                    showShareOptions = true
+                    presentedSheet = .shareOptions
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .symbolEffect(.bounce, value: shareTapCount)
@@ -88,7 +86,7 @@ struct StoryDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 if let urlString = viewModel.story.url, let url = URL(string: urlString) {
                     Button {
-                        safariURL = PresentedURL(url: url)
+                        presentedSheet = .safari(url)
                     } label: {
                         Image(systemName: "safari")
                     }
@@ -119,33 +117,79 @@ struct StoryDetailView: View {
         .onChange(of: savedStories.first(where: { $0.id == viewModel.story.id })?.cachedSummaryText) { _, _ in
             adoptCachedSummaryIfAvailable()
         }
-        .sheet(item: $safariURL) { wrapped in
-            SafariView(url: wrapped.url).ignoresSafeArea()
+        .sheet(item: $presentedSheet) { sheet in
+            sheetDestination(for: sheet)
         }
-        .sheet(isPresented: $showLogin) {
+        .tint(Theme.accent)
+    }
+
+    private var isSaved: Bool {
+        savedStories.contains { $0.id == viewModel.story.id }
+    }
+
+    /// Bridges the consolidated `presentedSheet` state back to the
+    /// `Binding<Bool>` shape that `VoteButton` and `PollView` expect
+    /// for prompting login. Setting true flips presentedSheet to
+    /// .login; setting false clears it only if .login was the
+    /// currently-presented sheet (so we don't dismiss someone else's
+    /// modal accidentally).
+    private var showLoginBinding: Binding<Bool> {
+        Binding(
+            get: {
+                guard case .login = presentedSheet else { return false }
+                return true
+            },
+            set: { newValue in
+                if newValue {
+                    presentedSheet = .login
+                } else if case .login = presentedSheet {
+                    presentedSheet = nil
+                }
+            }
+        )
+    }
+
+    /// Routes a `DetailSheet` value to its destination view. Single
+    /// dispatch point for every modal — no two `.sheet` modifiers,
+    /// no ambiguity about which boolean was set first when more than
+    /// one event lands in the same render pass.
+    @ViewBuilder
+    private func sheetDestination(for sheet: DetailSheet) -> some View {
+        switch sheet {
+        case .safari(let url):
+            SafariView(url: url).ignoresSafeArea()
+        case .login:
             LoginView().environmentObject(auth)
-        }
-        .sheet(item: $replyTarget) { target in
+        case .reply(let target):
             ReplyView(
                 parentID: target.id,
                 parentAuthor: target.item.by,
                 parentSnippet: snippet(from: target.item.text ?? "")
             )
             .environmentObject(auth)
-        }
-        .sheet(item: Binding(
-            get: { profileTarget.map(IdentifiedUsername.init) },
-            set: { profileTarget = $0?.value }
-        )) { target in
-            UserProfileView(username: target.value)
-        }
-        .sheet(isPresented: $showThreadQuestion) {
+        case .profile(let username):
+            UserProfileView(username: username)
+        case .domain(let host):
+            NavigationStack {
+                AlgoliaFeedView(
+                    kind: .domain(host),
+                    navigationTitle: host,
+                    navigationSubtitle: "Stories from \(host)",
+                    navigationSystemImage: "globe"
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { presentedSheet = nil }
+                    }
+                }
+            }
+            .environmentObject(auth)
+        case .threadQuestion:
             ThreadQuestionView(
                 title: viewModel.story.title ?? "",
                 transcript: viewModel.commentsTranscript()
             )
-        }
-        .sheet(isPresented: $showShareOptions) {
+        case .shareOptions:
             ShareOptionsView(
                 title: viewModel.story.title ?? "",
                 url: viewModel.story.url.flatMap(URL.init(string:)),
@@ -155,30 +199,6 @@ struct StoryDetailView: View {
                 hasComments: !viewModel.comments.isEmpty
             )
         }
-        .sheet(item: Binding(
-            get: { domainTarget.map(IdentifiedHost.init) },
-            set: { domainTarget = $0?.value }
-        )) { target in
-            NavigationStack {
-                AlgoliaFeedView(
-                    kind: .domain(target.value),
-                    navigationTitle: target.value,
-                    navigationSubtitle: "Stories from \(target.value)",
-                    navigationSystemImage: "globe"
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { domainTarget = nil }
-                    }
-                }
-            }
-            .environmentObject(auth)
-        }
-        .tint(Theme.accent)
-    }
-
-    private var isSaved: Bool {
-        savedStories.contains { $0.id == viewModel.story.id }
     }
 
     /// Outline-only header chip — stroked capsule, no fill. Matches the
@@ -221,7 +241,7 @@ struct StoryDetailView: View {
            let url = URL(string: urlString),
            shouldShowHero {
             Button {
-                safariURL = PresentedURL(url: url)
+                presentedSheet = .safari(url)
             } label: {
                 Rectangle()
                     .fill(skeletonColor)
@@ -293,7 +313,7 @@ struct StoryDetailView: View {
                         systemImage: "safari",
                         tint: Theme.accent
                     ) {
-                        safariURL = PresentedURL(url: url)
+                        presentedSheet = .safari(url)
                     }
 
                     if let host = viewModel.story.host {
@@ -302,7 +322,7 @@ struct StoryDetailView: View {
                             systemImage: "rectangle.stack",
                             tint: .secondary
                         ) {
-                            domainTarget = host
+                            presentedSheet = .domain(host)
                         }
                         .accessibilityLabel("More from \(host)")
                     }
@@ -316,7 +336,7 @@ struct StoryDetailView: View {
             }
 
             if viewModel.story.type == "poll", let parts = viewModel.story.parts, !parts.isEmpty {
-                PollView(parts: parts, showLogin: $showLogin)
+                PollView(parts: parts, showLogin: showLoginBinding)
                     .environmentObject(auth)
             }
 
@@ -336,7 +356,7 @@ struct StoryDetailView: View {
                 VoteButton(
                     itemID: viewModel.story.id,
                     score: viewModel.story.score ?? 0,
-                    showLogin: $showLogin
+                    showLogin: showLoginBinding
                 )
                 .environmentObject(auth)
 
@@ -439,7 +459,7 @@ struct StoryDetailView: View {
             if let by = viewModel.story.by {
                 metaSeparator
                 Button {
-                    profileTarget = by
+                    presentedSheet = .profile(by)
                 } label: {
                     Text(by)
                         .underline()
@@ -474,7 +494,7 @@ struct StoryDetailView: View {
             Spacer()
             if !viewModel.comments.isEmpty {
                 Button {
-                    showThreadQuestion = true
+                    presentedSheet = .threadQuestion
                 } label: {
                     Label("Ask", systemImage: "questionmark.bubble")
                         .font(.footnote.weight(.medium))
@@ -547,13 +567,13 @@ struct StoryDetailView: View {
                         },
                         onReply: {
                             if auth.isLoggedIn {
-                                replyTarget = node
+                                presentedSheet = .reply(node)
                             } else {
-                                showLogin = true
+                                presentedSheet = .login
                             }
                         },
                         onSelectUser: { username in
-                            profileTarget = username
+                            presentedSheet = .profile(username)
                         }
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -593,15 +613,29 @@ private struct SafariView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
-private struct PresentedURL: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
-}
+/// Discriminated union of every sheet the detail view can present.
+/// Drives a single `.sheet(item:)` so two presentations can never
+/// race for the same slot.
+enum DetailSheet: Identifiable {
+    case safari(URL)
+    case login
+    case reply(CommentNode)
+    case profile(String)
+    case domain(String)
+    case threadQuestion
+    case shareOptions
 
-/// Lets `sheet(item:)` use a plain String username.
-private struct IdentifiedUsername: Identifiable {
-    let value: String
-    var id: String { value }
+    var id: String {
+        switch self {
+        case .safari(let url):     return "safari:\(url.absoluteString)"
+        case .login:               return "login"
+        case .reply(let node):     return "reply:\(node.id)"
+        case .profile(let user):   return "profile:\(user)"
+        case .domain(let host):    return "domain:\(host)"
+        case .threadQuestion:      return "threadQuestion"
+        case .shareOptions:        return "shareOptions"
+        }
+    }
 }
 
 /// Quiet pulsing placeholder shown in the hero banner while the OG
@@ -632,8 +666,3 @@ private struct HeroSkeleton: View {
     }
 }
 
-/// Same trick for a host name (domain feed sheet).
-private struct IdentifiedHost: Identifiable {
-    let value: String
-    var id: String { value }
-}

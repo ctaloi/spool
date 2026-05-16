@@ -43,12 +43,6 @@ struct StoryListView: View {
     /// awaits.
     @State private var switchingFeed: Bool = false
     @EnvironmentObject private var router: AppRouter
-    /// Shared namespace for the iOS 26 zoom transition from a story
-    /// row into `StoryDetailView`. The row tags itself as a
-    /// `matchedTransitionSource`; the detail's
-    /// `.navigationTransition(.zoom(...))` reads the same id to
-    /// animate the row's frame morphing into the detail.
-    @Namespace private var storyZoomNamespace
     @FocusState private var searchFieldFocused: Bool
 
     private var isSearching: Bool {
@@ -100,7 +94,6 @@ struct StoryListView: View {
         } detail: {
             if let story = selectedStory {
                 StoryDetailView(story: story)
-                    .navigationTransition(.zoom(sourceID: story.id, in: storyZoomNamespace))
                     .id(story.id)
             } else {
                 DetailPlaceholderView()
@@ -1061,7 +1054,6 @@ struct StoryListView: View {
             isRead: readIDs.contains(story.id),
             isSaved: savedIDs.contains(story.id)
         )
-        .matchedTransitionSource(id: story.id, in: storyZoomNamespace)
         .tag(story)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
