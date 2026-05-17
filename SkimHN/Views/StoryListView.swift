@@ -331,6 +331,7 @@ struct StoryListView: View {
             .navigationBarBackButtonHidden(horizontalSizeClass == .compact)
             .toolbar {
                 sidebarToggleToolbarItem
+                listenShortcutToolbarItem
                 feedPickerToolbarItem
             }
             // Native search drawer for feeds that support it. iOS
@@ -415,6 +416,35 @@ struct StoryListView: View {
             ToolbarItem(placement: .topBarLeading) {
                 SidebarToggleButton()
             }
+        }
+    }
+
+    /// One-tap shortcut to the Listen queue from any feed. Pairs
+    /// the headphones icon with a small accent-dot badge when there
+    /// are items waiting, so a glance tells the user the queue is
+    /// non-empty without taking up label space.
+    @ToolbarContentBuilder
+    private var listenShortcutToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                feedSource = .readLater
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "headphones")
+                    if !readLaterStories.isEmpty {
+                        Text("\(readLaterStories.count)")
+                            .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.red, in: Capsule(style: .continuous))
+                            .offset(x: 8, y: -7)
+                    }
+                }
+            }
+            .accessibilityLabel(readLaterStories.isEmpty
+                                ? "Open Listen queue"
+                                : "Open Listen queue, \(readLaterStories.count) items")
         }
     }
 

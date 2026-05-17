@@ -12,6 +12,7 @@ struct AppSidebar: View {
     @Binding var selection: MainFeedSource?
     @EnvironmentObject private var auth: AuthViewModel
     @Query private var savedStories: [SavedStory]
+    @Query private var readStories: [ReadStory]
     @Query private var readLaterStories: [ReadLaterStory]
     @Query private var followedUsers: [FollowedUser]
     @State private var profileTarget: String?
@@ -33,6 +34,8 @@ struct AppSidebar: View {
     @State private var notifierStatus: NotifierStatus = .idle
     /// Last "Test BG Refresh" outcome. nil before first tap.
     @State private var bgRefreshOutcome: MentionsNotifier.CheckOutcome?
+    @State private var showMarkAllUnreadConfirmation: Bool = false
+    @Environment(\.modelContext) private var modelContext
 
     let onSignIn: () -> Void
     let onSignOut: () -> Void
@@ -43,6 +46,7 @@ struct AppSidebar: View {
             accountSection
             categoriesSection
             browseSection
+            listenSection
             librarySection
             if auth.isLoggedIn {
                 postSection
@@ -140,15 +144,24 @@ struct AppSidebar: View {
         }
     }
 
+    /// Listen has its own top-level section — sibling to Categories
+    /// and Browse — because it's the headline AI feature, not a side
+    /// utility tucked into Library.
+    @ViewBuilder
+    private var listenSection: some View {
+        Section("Listen") {
+            Label("Queue", systemImage: "headphones")
+                .badge(readLaterStories.count)
+                .tag(MainFeedSource.readLater)
+        }
+    }
+
     @ViewBuilder
     private var librarySection: some View {
         Section("Library") {
             Label("Saved", systemImage: "bookmark")
                 .badge(savedStories.count)
                 .tag(MainFeedSource.saved)
-            Label("Listen", systemImage: "headphones")
-                .badge(readLaterStories.count)
-                .tag(MainFeedSource.readLater)
             if !followedUsers.isEmpty {
                 Label("Following", systemImage: "person.2")
                     .badge(followedUsers.count)
@@ -193,6 +206,40 @@ struct AppSidebar: View {
                 mentionNotificationTestRow
                 mentionBGRefreshTestRow
             }
+
+            markAllUnreadRow
+        }
+    }
+
+    /// Destructive action — clears the ReadStory table so every
+    /// story renders as fresh again. Behind a confirmation dialog
+    /// because there's no undo.
+    @ViewBuilder
+    private var markAllUnreadRow: some View {
+        Button {
+            showMarkAllUnreadConfirmation = true
+        } label: {
+            Label("Mark All as Unread", systemImage: "circle.badge.minus")
+                .foregroundStyle(.red)
+        }
+        .disabled(readStories.isEmpty)
+        .confirmationDialog(
+            "Mark all stories as unread?",
+            isPresented: $showMarkAllUnreadConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Mark All as Unread", role: .destructive) {
+                clearReadHistory()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This clears the read state from every story you've opened. The list will look new again.")
+        }
+    }
+
+    private func clearReadHistory() {
+        for story in readStories {
+            modelContext.delete(story)
         }
     }
 
