@@ -5,11 +5,17 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
 
+# Project-level base xcconfig — DEVELOPMENT_TEAM lives here so it
+# survives every `xcodegen generate`. See Configs/Signing.xcconfig
+# for the one-time setup notes.
+configFiles:
+  Debug: Configs/Signing.xcconfig
+  Release: Configs/Signing.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-    DEVELOPMENT_TEAM: ""
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN

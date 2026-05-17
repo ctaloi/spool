@@ -1,0 +1,21 @@
+// Local code-signing config.
+//
+// project.yml deliberately does NOT set DEVELOPMENT_TEAM — every
+// `xcodegen generate` would otherwise overwrite the .pbxproj's
+// signing entries with an empty string, which is why the team
+// kept reverting to "None" after regeneration.
+//
+// Set your personal/team identifier here. Then, ONCE per clone,
+// run this so git stops tracking your edits to this file:
+//
+//   git update-index --skip-worktree Configs/Signing.xcconfig
+//
+// To resume tracking (e.g., to rebase or pull schema changes):
+//
+//   git update-index --no-skip-worktree Configs/Signing.xcconfig
+//
+// xcodegen reads this file at project-generation time but never
+// writes to it — your team ID survives every regenerate.
+
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic

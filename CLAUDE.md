@@ -39,6 +39,27 @@ xcodegen generate
 open SkimHN.xcodeproj
 ```
 
+### Code signing
+
+`DEVELOPMENT_TEAM` lives in `Configs/Signing.xcconfig`, not in
+`project.yml`. xcodegen reads the xcconfig but never writes to it,
+so your team ID survives every `xcodegen generate`.
+
+One-time setup per clone:
+
+```sh
+# Edit Configs/Signing.xcconfig and set DEVELOPMENT_TEAM = your-team-id.
+# Then tell git to ignore your local edits:
+git update-index --skip-worktree Configs/Signing.xcconfig
+```
+
+To unstash and pull schema changes from main, reverse it with
+`git update-index --no-skip-worktree Configs/Signing.xcconfig`.
+
+Never set `DEVELOPMENT_TEAM` in `project.yml` — that file regenerates
+the `.pbxproj`, which overwrites the signing block on every run and
+resets the team to None.
+
 To build from the command line (this machine's `xcode-select` points at
 `CommandLineTools`, which lacks `xcodebuild`; force-point at Xcode.app):
 
