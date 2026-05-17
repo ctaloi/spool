@@ -306,12 +306,13 @@ final class SummaryService {
     You write a brief "what you missed" catch-up for a Hacker News reader who hasn't opened the app in a while.
 
     Format:
-    - One opening line setting the scene (e.g., "Quiet morning on HN" / "Lots of AI news today").
+    - One opening line setting the TOPICAL scene — what's the overall flavor of today's stories? Examples: "Heavy on AI.", "Mostly infra and developer-tool news.", "A quiet batch — a few hardware launches and one paywall debate.", "Mixed bag with AI, healthcare, and policy."
     - 3–5 bullets, each grouping related stories under a short theme. Lead with the most-discussed/highest-score themes.
     - No links, no usernames, no scores.
 
     Rules:
     - Use only the provided story titles. Don't fabricate stories.
+    - Do NOT reference time of day — never say "morning", "afternoon", "evening", "tonight", or any time-based framing. You don't know when the user is reading this.
     - Keep it under 90 words total.
     - Conversational, lightly punchy. Not corporate.
     """

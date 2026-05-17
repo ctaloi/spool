@@ -8,8 +8,12 @@ struct StoryRowView: View {
     var isSaved: Bool = false
 
     /// Rank column width grows with Dynamic Type so 2- and 3-digit ranks
-    /// don't clip at larger reading sizes.
-    @ScaledMetric(relativeTo: .footnote) private var rankColumnWidth: CGFloat = 24
+    /// don't clip at larger reading sizes. 36pt comfortably fits "999"
+    /// at the default text style; smaller widths previously wrapped
+    /// 3-digit ranks to two lines (rendered "11" on top of "3" for
+    /// rank 113), which read as scrambled numbering on filtered feeds
+    /// where visible ranks routinely exceed 99.
+    @ScaledMetric(relativeTo: .footnote) private var rankColumnWidth: CGFloat = 36
 
     @State private var thumbnail: UIImage?
     @State private var thumbnailLookupComplete = false
@@ -217,6 +221,13 @@ struct StoryRowView: View {
         if let rank {
             Text("\(rank)")
                 .font(Theme.Typography.scoreCompact)
+                .monospacedDigit()
+                // Belt to the column-width suspenders: force the
+                // rank onto a single line and scale it down rather
+                // than wrap if the user has cranked Dynamic Type or
+                // the rank goes 4-digit.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 // Quieter accent for read rows so the rank doesn't
                 // wash to a pinkish-orange under a blanket dim. Crisp
                 // accent for unread, half-strength for read.
