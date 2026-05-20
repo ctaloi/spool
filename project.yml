@@ -1,4 +1,4 @@
-name: SkimHN
+name: Spool
 options:
   bundleIdPrefix: com.aloi
   deploymentTarget:
@@ -18,7 +18,7 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN
+    PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool
     # iOS 26 recommended settings — applied via Xcode's
     # "Update to Recommended Settings" prompt and mirrored here so they
     # survive `xcodegen generate`.
@@ -26,14 +26,14 @@ settings:
     STRING_CATALOG_GENERATE_SYMBOLS: YES
 
 targets:
-  SkimHN:
+  Spool:
     type: application
     platform: iOS
     sources:
-      - path: SkimHN
+      - path: Spool
     dependencies:
-      - target: SkimHNShareExtension
-      - target: SkimHNWidget
+      - target: SpoolShareExtension
+      - target: SpoolWidget
     # Manual Info.plist. We used to lean on GENERATE_INFOPLIST_FILE +
     # INFOPLIST_KEY_ settings, but the Xcode 17 / iOS 26 SDK doesn't
     # recognize INFOPLIST_KEY_UIBackgroundModes or
@@ -42,9 +42,11 @@ targets:
     # ourselves is the only reliable way to ship the background-task
     # identifier the Mentions feature needs.
     info:
-      path: SkimHN/Info.plist
+      path: Spool/Info.plist
       properties:
-        CFBundleDisplayName: SkimHN
+        CFBundleDisplayName: Spool
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
           UISceneConfigurations: {}
@@ -62,11 +64,11 @@ targets:
         UIBackgroundModes:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
-          - com.aloi.SkimHN.refresh-mentions
+          - com.aloi.Spool.refresh-mentions
         CFBundleURLTypes:
-          - CFBundleURLName: com.aloi.SkimHN
+          - CFBundleURLName: com.aloi.Spool
             CFBundleURLSchemes:
-              - skimhn
+              - spool
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -76,15 +78,15 @@ targets:
       commandLineArguments: {}
       environmentVariables: []
 
-  SkimHNShareExtension:
+  SpoolShareExtension:
     type: app-extension
     platform: iOS
     sources:
-      - path: SkimHNShareExtension
+      - path: SpoolShareExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN.ShareExtension
-        PRODUCT_NAME: SkimHNShareExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool.ShareExtension
+        PRODUCT_NAME: SpoolShareExtension
         # App extensions need a NESTED `NSExtension` dictionary in
         # their Info.plist (with NSExtensionPointIdentifier etc.
         # nested under it). Xcode's INFOPLIST_KEY_NSExtension* build
@@ -92,9 +94,9 @@ targets:
         # rejects at install time. So we ship a manual Info.plist
         # rather than letting GENERATE_INFOPLIST_FILE produce one.
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: SkimHNShareExtension/Info.plist
+        INFOPLIST_FILE: SpoolShareExtension/Info.plist
 
-  SkimHNWidget:
+  SpoolWidget:
     type: app-extension
     platform: iOS
     # Widget views need: WidgetKit's own files, plus the HN API +
@@ -102,28 +104,70 @@ targets:
     # into both targets — that's fine because HNAPI is an actor with
     # no static state and HNItem is a stateless value type.
     sources:
-      - path: SkimHNWidget
-      - path: SkimHN/Networking/HNAPI.swift
-      - path: SkimHN/Models/HNItem.swift
+      - path: SpoolWidget
+      - path: Spool/Networking/HNAPI.swift
+      - path: Spool/Models/HNItem.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SkimHN.Widget
-        PRODUCT_NAME: SkimHNWidget
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool.Widget
+        PRODUCT_NAME: SpoolWidget
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: SkimHNWidget/Info.plist
+        INFOPLIST_FILE: SpoolWidget/Info.plist
         # WidgetKit / SwiftUI link automatically via Swift's import
         # mechanism. No extra LD_RUNPATH_SEARCH_PATHS needed beyond
         # the @executable_path default.
 
+  SpoolTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SpoolTests
+    dependencies:
+      - target: Spool
+    settings:
+      base:
+        # Swift Testing (the modern replacement for XCTest) is built
+        # into the iOS 26 SDK; no separate package needed.
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SpoolTests
+    # Auto-generate a scheme for the test target. xcodegen wires
+    # this into the host app's scheme too via the `test` action's
+    # targets list below.
+    scheme:
+      testTargets:
+        - SpoolTests
+      gatherCoverageData: true
+
+  SpoolUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SpoolUITests
+    dependencies:
+      - target: Spool
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SpoolUITests
+        TEST_TARGET_NAME: Spool
+    scheme:
+      testTargets:
+        - SpoolUITests
+      gatherCoverageData: false
+
 schemes:
-  SkimHN:
+  Spool:
     build:
       targets:
-        SkimHN: all
+        Spool: all
+        SpoolTests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      gatherCoverageData: true
+      targets:
+        - SpoolTests
     profile:
       config: Release
     analyze:

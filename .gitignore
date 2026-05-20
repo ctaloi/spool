@@ -24,3 +24,7 @@ Pods/
 # Misc
 *.log
 *.moved-aside
+
+# Cloudflare Wrangler local state (CI tokens, deploy logs, etc.)
+.wrangler/
+

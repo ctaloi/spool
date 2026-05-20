@@ -3,12 +3,31 @@ import ImageIO
 import UniformTypeIdentifiers
 import Foundation
 
-// Renders the 1024×1024 HN Skim app icon: three left-aligned, pill-shaped
-// bars of decreasing length on a soft white field. The top bar is HN
-// orange (the ranked "top story"); the bars below fade to gray, signaling
-// a feed being skimmed. No gradients, no text — meant to read crisply at
-// every home-screen size and to look unlike any other reader app on the
-// home screen.
+// Renders the 1024×1024 Spool app icon: three left-aligned, pill-shaped
+// bars of decreasing length and opacity on a tinted field. Three modes:
+//
+//   light   — HN orange field, white pills (the new default; matches
+//             the showcase landing favicon).
+//   dark    — near-black field, HN orange pills (iOS dark-appearance
+//             home-screen variant).
+//   tinted  — transparent field, light pills (iOS reads the alpha
+//             silhouette and renders it through the user's chosen
+//             tint color).
+//
+// Usage: swift make_icon.swift [light|dark|tinted] [output-path]
+
+enum IconMode: String { case light, dark, tinted }
+
+let argMode = CommandLine.arguments.count > 1
+    ? CommandLine.arguments[1].lowercased()
+    : "light"
+guard let mode = IconMode(rawValue: argMode) else {
+    fputs("Unknown mode '\(argMode)'. Use: light | dark | tinted\n", stderr)
+    exit(1)
+}
+let outArg = CommandLine.arguments.count > 2
+    ? CommandLine.arguments[2]
+    : "icon-1024-\(mode.rawValue).png"
 
 let size: CGFloat = 1024
 let colorSpace = CGColorSpaceCreateDeviceRGB()
@@ -21,28 +40,48 @@ guard let ctx = CGContext(
     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
 ) else { fatalError("ctx") }
 
-// Image-space coords (y=0 at top).
 ctx.translateBy(x: 0, y: size)
 ctx.scaleBy(x: 1, y: -1)
 
-// Background — clean off-white. Pure #FFFFFF reads as harsh on OLED;
-// a hair-warm tint keeps the bars feeling crisp without burning out.
-ctx.setFillColor(CGColor(red: 0.985, green: 0.985, blue: 0.982, alpha: 1.0))
-ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+// MARK: - Background + pill colors per appearance
 
-// Stack geometry. Three pill bars, all left-aligned at the same x so
-// the silhouette reads as a ragged-right "list".
+let orange = CGColor(red: 1.0, green: 0.40, blue: 0.0, alpha: 1.0)
+let darkBG = CGColor(red: 0.06, green: 0.06, blue: 0.07, alpha: 1.0)
+let white = CGColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+
+let background: CGColor?
+let pillBase: CGColor
+switch mode {
+case .light:
+    background = orange
+    pillBase = white
+case .dark:
+    background = darkBG
+    pillBase = orange
+case .tinted:
+    // Transparent — iOS fills with the user's selected tint behind
+    // the white silhouette pills.
+    background = nil
+    pillBase = white
+}
+
+if let background {
+    ctx.setFillColor(background)
+    ctx.fill(CGRect(x: 0, y: 0, width: size, height: size))
+}
+
+// MARK: - Pills
+
 let barHeight: CGFloat = 110
-let cornerRadius: CGFloat = barHeight / 2  // full pill
+let cornerRadius: CGFloat = barHeight / 2
 let gap: CGFloat = 96
 
-let bars: [(width: CGFloat, color: CGColor)] = [
-    // Top bar — HN orange, longest. The "Top Story".
-    (720, CGColor(red: 1.0, green: 0.40, blue: 0.0, alpha: 1.0)),
-    // Middle bar — slate gray, medium length.
-    (540, CGColor(red: 0.42, green: 0.46, blue: 0.52, alpha: 1.0)),
-    // Bottom bar — light gray, shortest, fading out.
-    (360, CGColor(red: 0.72, green: 0.74, blue: 0.78, alpha: 1.0)),
+// Three pills with descending width AND descending opacity. The fade
+// communicates "skim a feed" — strong top story, lighter rest.
+let bars: [(width: CGFloat, opacity: CGFloat)] = [
+    (720, 1.0),
+    (540, 0.70),
+    (360, 0.40),
 ]
 
 let widestWidth = bars.map(\.width).max() ?? 0
@@ -59,15 +98,18 @@ for (i, bar) in bars.enumerated() {
         cornerHeight: cornerRadius,
         transform: nil
     )
-    ctx.setFillColor(bar.color)
+    let comps = pillBase.components ?? [1, 1, 1, 1]
+    let color = CGColor(
+        red: comps[0], green: comps[1], blue: comps[2],
+        alpha: bar.opacity
+    )
+    ctx.setFillColor(color)
     ctx.addPath(path)
     ctx.fillPath()
 }
 
-// Write PNG.
-let outArg = CommandLine.arguments.count > 1
-    ? CommandLine.arguments[1]
-    : "icon-1024.png"
+// MARK: - Write PNG
+
 let outURL = URL(fileURLWithPath: outArg)
 guard let image = ctx.makeImage(),
       let dest = CGImageDestinationCreateWithURL(
@@ -76,4 +118,4 @@ guard let image = ctx.makeImage(),
 else { fatalError("destination") }
 CGImageDestinationAddImage(dest, image, nil)
 guard CGImageDestinationFinalize(dest) else { fatalError("write failed") }
-print("wrote \(outURL.path)")
+print("wrote \(outURL.path) (\(mode.rawValue))")

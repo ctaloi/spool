@@ -1,4 +1,4 @@
-# SkimHN — project guide for AI assistants
+# Spool — project guide for AI assistants
 
 A SwiftUI Hacker News reader for iPhone + iPad with on-device AI summaries.
 This document orients you to the codebase fast — read it before doing any
@@ -28,7 +28,7 @@ substantive work.
   overflow are surfaced with kind-specific UI in the summary cards.
 - Project is generated via [XcodeGen](https://github.com/yonaskolb/XcodeGen).
   After adding files run `xcodegen generate`; never hand-edit
-  `SkimHN.xcodeproj`.
+  `Spool.xcodeproj`.
 
 ## Build
 
@@ -36,7 +36,7 @@ substantive work.
 brew install xcodegen          # one time
 cd ~/src/hacker-news
 xcodegen generate
-open SkimHN.xcodeproj
+open Spool.xcodeproj
 ```
 
 ### Code signing
@@ -65,7 +65,7 @@ To build from the command line (this machine's `xcode-select` points at
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  xcodebuild -project SkimHN.xcodeproj -scheme SkimHN \
+  xcodebuild -project Spool.xcodeproj -scheme Spool \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
@@ -76,8 +76,8 @@ command above.
 ## File layout
 
 ```
-SkimHN/
-  SkimHNApp.swift            @main; ModelContainer setup
+Spool/
+  SpoolApp.swift            @main; ModelContainer setup
   Theme.swift                Colors + Theme.Typography tokens
   Models/
     HNItem.swift             API item shape + HNStoryFeed enum
@@ -173,7 +173,7 @@ matching (HN HTML-entity-escapes ampersands in links).
   with reason `CA92.1` and `NSPrivacyTracking: false`.
 - `AccentColor` is a color set with light + dark variants — use
   `Color("AccentColor")` (wrapped in `Theme.accent`).
-- App display name (`CFBundleDisplayName`) is **"SkimHN"**. The full
+- App display name (`CFBundleDisplayName`) is **"Spool"**. The full
   "Hacker News" string is avoided in any user-facing identifier to dodge
   trademark review.
 - Launch screen uses `INFOPLIST_KEY_UILaunchScreen_BackgroundColor:
@@ -185,10 +185,10 @@ matching (HN HTML-entity-escapes ampersands in links).
 - Comments explain *why*, not *what*. Skip them entirely if the
   identifiers already say it.
 - For UI work, parse-check with `swiftc -parse` after each meaningful
-  edit. If full Xcode is available, `xcodebuild -project SkimHN.xcodeproj
-  -scheme SkimHN build` is the truth.
+  edit. If full Xcode is available, `xcodebuild -project Spool.xcodeproj
+  -scheme Spool build` is the truth.
 - Don't surface AI summaries automatically — they fire when the user
-  taps Summarize. The brand promise is "Skim", not "auto-skim".
+  taps Summarize or Play. The brand is calm, not pushy.
 
 ## Out-of-scope (don't add without asking)
 
