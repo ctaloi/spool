@@ -3,605 +3,813 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spool — Hacker News, queued.</title>
-<meta name="description" content="A calm iPhone and iPad reader for Hacker News with on-device AI summaries, an audio queue, and zero tracking. The whole thing runs on your phone.">
-<meta property="og:title" content="Spool — Hacker News, queued.">
-<meta property="og:description" content="A calm iPhone and iPad reader for Hacker News. On-device AI summaries, hands-free audio, zero tracking.">
+<title>Spool — a calmer way to read Hacker News</title>
+<meta name="description" content="A local-first Hacker News reader for iPhone and iPad. On-device AI summaries, a hands-free audio queue, no accounts, no analytics.">
+<meta property="og:title" content="Spool — a calmer way to read Hacker News">
+<meta property="og:description" content="A local-first Hacker News reader for iPhone and iPad. On-device summaries, a hands-free audio queue, no accounts, no analytics.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://getspool.news/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Spool — Hacker News, queued.">
-<meta name="twitter:description" content="A calm iPhone and iPad reader for Hacker News. On-device AI summaries, hands-free audio, zero tracking.">
+<meta name="twitter:title" content="Spool — a calmer way to read Hacker News">
+<meta name="twitter:description" content="A local-first Hacker News reader for iPhone and iPad. On-device summaries, a hands-free audio queue, no accounts, no analytics.">
 <link rel="canonical" href="https://getspool.news/">
-<meta name="theme-color" content="#FF6600" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fbf9f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FF6600'/%3E%3Crect x='10' y='18' width='44' height='6' rx='3' fill='white'/%3E%3Crect x='10' y='29' width='34' height='6' rx='3' fill='white' opacity='0.7'/%3E%3Crect x='10' y='40' width='22' height='6' rx='3' fill='white' opacity='0.4'/%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #ffffff;
-    --bg-alt: #f7f5f1;
-    --surface: #ffffff;
-    --ink: #0a0a0a;
-    --ink-2: #4a4a4a;
-    --ink-3: #8a8a8a;
-    --accent: #ff6600;
-    --accent-bg: #fff5ee;
-    --hair: rgba(0,0,0,0.08);
+    /* Warm paper tones rather than pure white — closer to the
+       calm, editorial feel of an indie reading app. */
+    --paper:   #fbf9f5;
+    --paper-2: #f3efe7;
+    --ink:     #14130f;
+    --ink-2:   #555149;
+    --ink-3:   #8a857a;
+    --rule:    rgba(20, 19, 15, 0.10);
+    --rule-2:  rgba(20, 19, 15, 0.05);
+    --accent:  #ff6600;
+    --accent-soft: rgba(255, 102, 0, 0.10);
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --serif: "Iowan Old Style", "Charter", "Palatino", "Source Serif Pro", Georgia, serif;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0a0a0b; --bg-alt: #131316; --surface: #18181c;
-      --ink: #f6f6f6; --ink-2: #a8a8a8; --ink-3: #6a6a6a;
-      --accent: #ff7a26; --accent-bg: rgba(255, 122, 38, 0.08);
-      --hair: rgba(255,255,255,0.08);
+      --paper:   #0b0b0c;
+      --paper-2: #131315;
+      --ink:     #ececea;
+      --ink-2:   #a09c93;
+      --ink-3:   #6b6760;
+      --rule:    rgba(255, 255, 255, 0.10);
+      --rule-2:  rgba(255, 255, 255, 0.05);
+      --accent:  #ff7a26;
+      --accent-soft: rgba(255, 122, 38, 0.12);
     }
   }
+
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
   body {
-    background: var(--bg); color: var(--ink);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-    font-size: 17px; line-height: 1.5;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
-  /* NAV */
+  ::selection { background: var(--accent); color: white; }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+  .narrow { max-width: 680px; margin: 0 auto; padding: 0 28px; }
+
+  /* ───────── Nav ───────── */
   nav.top {
-    position: sticky; top: 0; z-index: 10;
-    background: color-mix(in srgb, var(--bg) 85%, transparent);
-    backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 1px solid var(--hair);
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: saturate(140%) blur(14px);
+    -webkit-backdrop-filter: saturate(140%) blur(14px);
+    border-bottom: 1px solid var(--rule-2);
   }
-  nav.top .container {
+  nav.top .wrap {
     display: flex; align-items: center; justify-content: space-between;
-    padding-top: 14px; padding-bottom: 14px;
+    padding-top: 16px; padding-bottom: 16px;
   }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 600; font-size: 16px; letter-spacing: -0.005em;
+  }
   .brand-mark {
-    width: 28px; height: 28px; background: var(--accent);
-    border-radius: 7px; display: flex; flex-direction: column;
-    justify-content: center; padding: 0 5px; gap: 2px;
+    width: 24px; height: 24px; background: var(--accent);
+    border-radius: 6px;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 4px; gap: 2px;
   }
-  .brand-mark span { display: block; height: 3px; border-radius: 1.5px; background: white; }
-  .brand-mark span:nth-child(2) { width: 75%; opacity: 0.7; }
-  .brand-mark span:nth-child(3) { width: 50%; opacity: 0.4; }
-  .nav-links { display: flex; gap: 18px; align-items: center; }
-  .nav-links a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
-  .nav-links a:hover { color: var(--accent); }
-  /* Higher specificity than `.nav-links a` so the CTA actually
-     gets its solid-on-dark color back. Without this the secondary
-     gray bleeds through and the button label is unreadable. */
-  .nav-links a.nav-cta {
-    background: var(--ink); color: var(--bg);
-    padding: 8px 16px; border-radius: 999px;
-    font-size: 14px; font-weight: 600;
+  .brand-mark span { display: block; height: 2.5px; border-radius: 1.25px; background: #fff; }
+  .brand-mark span:nth-child(2) { width: 70%; opacity: 0.7; }
+  .brand-mark span:nth-child(3) { width: 45%; opacity: 0.45; }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a {
+    color: var(--ink-2);
+    font-size: 14px;
+    transition: color 120ms ease;
   }
-  .nav-links a.nav-cta:hover { color: var(--bg); opacity: 0.85; }
-  @media (max-width: 640px) { .nav-links { display: none; } }
+  .nav-links a:hover { color: var(--ink); }
+  @media (max-width: 640px) { .nav-links a:not(.primary) { display: none; } }
 
-  /* HERO */
-  .hero { padding: 96px 0 48px; overflow: hidden; }
+  /* ───────── Type scale ───────── */
+  h1, h2, h3 { margin: 0; letter-spacing: -0.025em; font-weight: 300; }
+  h1 {
+    font-size: clamp(44px, 7.5vw, 84px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+  }
+  h2 {
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.028em;
+  }
+  h3 {
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.018em;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+
+  .lede {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-2);
+    max-width: 56ch;
+  }
+
+  /* ───────── Hero ───────── */
+  .hero {
+    padding: 88px 0 64px;
+    border-bottom: 1px solid var(--rule-2);
+  }
   .hero-grid {
-    display: grid; gap: 48px; align-items: center;
+    display: grid; gap: 56px; align-items: center;
   }
-  @media (min-width: 880px) {
-    .hero-grid { grid-template-columns: 1.1fr 1fr; gap: 56px; }
+  @media (min-width: 900px) {
+    .hero-grid { grid-template-columns: 1.15fr 1fr; gap: 80px; }
   }
-  .hero h1 {
-    font-family: "SF Pro Display", system-ui, sans-serif;
-    font-size: clamp(48px, 8vw, 84px);
-    font-weight: 200; letter-spacing: -0.03em; line-height: 0.95;
-    margin: 0 0 24px;
-  }
+  .hero .eyebrow { margin-bottom: 24px; }
+  .hero h1 { margin-bottom: 28px; }
+  .hero h1 .quiet { color: var(--ink-3); }
   .hero h1 .accent { color: var(--accent); }
-  .hero-sub {
-    font-size: 21px; color: var(--ink-2); line-height: 1.45;
-    margin: 0 0 32px; max-width: 480px;
+  .hero-sub { margin-bottom: 36px; }
+  .hero-meta {
+    display: flex; gap: 8px 22px; flex-wrap: wrap;
+    color: var(--ink-3);
+    font-family: var(--mono); font-size: 12px;
+    letter-spacing: 0.04em;
+    padding-top: 24px;
+    border-top: 1px solid var(--rule-2);
+    max-width: 460px;
   }
-  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-  .btn-primary {
-    background: var(--ink); color: var(--bg); padding: 14px 24px;
-    border-radius: 999px; text-decoration: none; font-weight: 500;
+  .hero-meta span { display: inline-flex; align-items: center; gap: 8px; }
+  .hero-meta span::before {
+    content: "";
+    width: 5px; height: 5px;
+    background: var(--accent); border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .hero-ctas {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .btn {
     display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 14.5px; font-weight: 500;
+    letter-spacing: -0.005em;
+    transition: transform 120ms ease, background 160ms ease, color 160ms ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary {
+    background: var(--ink); color: var(--paper);
   }
   .btn-secondary {
-    color: var(--ink); padding: 14px 24px; border-radius: 999px;
-    text-decoration: none; font-weight: 500; border: 1px solid var(--hair);
+    color: var(--ink);
+    border: 1px solid var(--rule);
   }
-  .hero-meta {
-    margin-top: 28px; display: flex; gap: 18px; flex-wrap: wrap;
-    color: var(--ink-3); font-size: 13px;
-  }
-  .hero-meta span { display: inline-flex; align-items: center; gap: 6px; }
-  .hero-meta span::before {
-    content: ""; width: 6px; height: 6px; border-radius: 50%;
-    background: var(--accent);
-  }
+  .btn-secondary:hover { background: var(--rule-2); }
+  .btn .arr { transition: transform 160ms ease; }
+  .btn:hover .arr { transform: translateX(2px); }
 
-  /* DEVICE FRAMES
+  /* ───────── Device frames — subtle, no fake chrome ─────────
    *
-   * Real iPhone screenshots in a thin dark CSS bezel — the screenshot
-   * already carries the status bar + dynamic island, and a slim
-   * surrounding bezel + rounded inner corner reads as "phone in a
-   * black case" without the double-notch glitch a fake overlay would
-   * cause. `<picture>` lets us serve a dark-mode variant when the
-   * visitor's OS is in dark mode (auto-switch, no JS).
+   * The screenshots already carry the iOS status bar + dynamic
+   * island; we add only a thin dark hairline bezel and a soft
+   * shadow so the phone feels like it's sitting on the page,
+   * not photoshopped into a marketing frame.
    */
   .device {
     position: relative;
     margin: 0 auto;
-    padding: 8px;                            /* the bezel itself */
-    background: #1a1a1c;
-    border-radius: 46px;
+    padding: 6px;
+    background: linear-gradient(180deg, #1f1f22 0%, #0f0f11 100%);
+    border-radius: 44px;
     box-shadow:
-      0 0 0 1px rgba(255,255,255,0.06) inset,
-      0 60px 100px -40px rgba(0,0,0,0.35),
-      0 24px 40px -12px rgba(0,0,0,0.12);
+      inset 0 0 0 1px rgba(255,255,255,0.06),
+      0 1px 0 rgba(255,255,255,0.04),
+      0 30px 60px -30px rgba(0,0,0,0.45),
+      0 12px 28px -12px rgba(0,0,0,0.18);
     line-height: 0;
   }
-  .device picture, .device-screenshot {
-    display: block;
-    width: 100%; height: auto;
-    border-radius: 38px;
-    overflow: hidden;
-  }
-  .device picture img, .device-screenshot {
+  .device img {
     display: block;
     width: 100%; height: auto;
     border-radius: 38px;
   }
-  .device-large { max-width: 320px; }
-  .device-medium { max-width: 280px; }
+  .device-lg { max-width: 320px; }
+  .device-md { max-width: 280px; }
+  .device-sm { max-width: 240px; }
 
-  /* ON-DEVICE STRIP (right under hero) */
-  .strip {
-    background: var(--accent-bg);
-    border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair);
-    padding: 28px 0;
-  }
-  .strip .container { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; }
-  .strip-icon {
-    width: 44px; height: 44px; border-radius: 10px;
-    background: var(--accent); color: white;
-    display: flex; align-items: center; justify-content: center; font-size: 22px;
-  }
-  .strip-text { color: var(--ink); font-size: 16px; line-height: 1.5; }
-  .strip-text strong { color: var(--accent); font-weight: 700; }
-
-  /* FEATURES — large grid */
-  section.features { padding: 80px 0 40px; background: var(--bg-alt); }
-  .section-eyebrow {
-    font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--accent); margin: 0 0 12px;
-  }
-  .section-heading {
-    font-family: "SF Pro Display", system-ui;
-    font-size: clamp(32px, 5vw, 48px); font-weight: 200; letter-spacing: -0.02em;
-    margin: 0 0 56px; max-width: 700px; line-height: 1.05;
-  }
-  .feature-grid {
-    display: grid; gap: 18px;
-  }
-  @media (min-width: 720px) {
-    .feature-grid { grid-template-columns: 1fr 1fr; }
-  }
-  @media (min-width: 1000px) {
-    .feature-grid { grid-template-columns: repeat(3, 1fr); }
-  }
-  .feature-card {
-    background: var(--surface); border-radius: 18px;
-    padding: 24px; border: 1px solid var(--hair);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-  .feature-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px -12px rgba(0,0,0,0.1);
-  }
-  .feature-icon {
-    width: 40px; height: 40px; border-radius: 9px;
-    background: var(--accent-bg); color: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px; margin-bottom: 14px;
-  }
-  .feature-card h3 {
-    font-size: 18px; font-weight: 600; margin: 0 0 6px;
-    letter-spacing: -0.01em;
-  }
-  .feature-card p {
-    margin: 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55;
+  @media (prefers-color-scheme: dark) {
+    .device {
+      box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.08),
+        0 1px 0 rgba(255,255,255,0.04),
+        0 30px 60px -30px rgba(0,0,0,0.6);
+    }
   }
 
-  /* DEEP DIVE SECTIONS */
-  section.deep { padding: 96px 0; }
-  .deep-grid {
-    display: grid; gap: 48px; align-items: center;
+  /* ───────── Section scaffolding ───────── */
+  section { padding: 120px 0; }
+  section + section { border-top: 1px solid var(--rule-2); }
+  section .eyebrow { margin-bottom: 22px; display: block; }
+  .section-head { max-width: 700px; margin-bottom: 64px; }
+  .section-head h2 { margin-bottom: 20px; }
+
+  /* ───────── Core experience — three quiet blocks ───────── */
+  .core-grid {
+    display: grid; gap: 80px;
+    margin-top: 8px;
+  }
+  .core-block {
+    display: grid; gap: 56px;
+    align-items: center;
   }
   @media (min-width: 880px) {
-    .deep-grid { grid-template-columns: 1fr 1fr; gap: 80px; }
-    .deep-grid.reverse > :first-child { order: 2; }
+    .core-block { grid-template-columns: 1.05fr 1fr; gap: 96px; }
+    .core-block.flip > :first-child { order: 2; }
   }
-  .deep h2 {
-    font-family: "SF Pro Display", system-ui;
-    font-size: clamp(28px, 4vw, 40px); font-weight: 200; letter-spacing: -0.02em;
-    margin: 0 0 16px; line-height: 1.05;
+  .core-block h3 {
+    font-size: clamp(26px, 3.4vw, 34px);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    margin-bottom: 18px;
   }
-  .deep p { color: var(--ink-2); font-size: 17px; line-height: 1.6; margin: 0 0 16px; }
-  .pill {
-    display: inline-block; padding: 4px 10px;
-    background: var(--accent-bg); color: var(--accent);
-    font-size: 12px; font-weight: 600; border-radius: 99px;
-    margin-bottom: 16px; letter-spacing: 0.04em; text-transform: uppercase;
+  .core-block p {
+    color: var(--ink-2);
+    font-size: 17px;
+    line-height: 1.6;
+    max-width: 46ch;
   }
-
-  /* Legacy CSS-mock styles kept only for the few remaining
-   * non-screenshot mocks elsewhere on the page (widget). */
-  .np-host { font-size: 10px; color: var(--accent); font-weight: 700;
-              letter-spacing: 0.1em; text-transform: uppercase; }
-  .np-title { font-size: 14px; font-weight: 600; line-height: 1.35; margin-top: 4px; }
-  .np-script {
-    margin-top: 14px; padding: 10px; border-radius: 8px;
-    background: var(--bg-alt); flex: 1;
-    font-size: 11px; line-height: 1.6;
-  }
-  .np-script .current { color: var(--ink); font-weight: 600; }
-  .np-script .upcoming { color: var(--ink-3); opacity: 0.5; }
-  .np-controls {
-    display: flex; gap: 16px; justify-content: center; align-items: center;
-    padding: 12px 0; margin-top: 8px;
-  }
-  .np-play { width: 38px; height: 38px; border-radius: 50%;
-    background: var(--accent); color: white;
-    display: flex; align-items: center; justify-content: center; font-size: 14px; }
-  .np-skip { color: var(--ink-2); font-size: 14px; }
-
-  /* ETYMOLOGY — Why "Spool" */
-  section.etymology {
-    background: var(--ink); color: var(--bg);
-    padding: 80px 0;
-  }
-  section.etymology .container { max-width: 760px; }
-  section.etymology .pill {
-    background: rgba(255, 102, 0, 0.18); color: var(--accent);
-  }
-  section.etymology h2 {
-    font-family: "SF Pro Display", system-ui;
-    font-size: clamp(28px, 4vw, 40px); font-weight: 200; letter-spacing: -0.02em;
-    margin: 0 0 16px; color: var(--bg);
-  }
-  /* Body text uses `var(--bg)` so it stays in sync with the
-   * section's inverted background: dark BG + light text in light
-   * mode, light BG + dark text in dark mode. Hardcoding white here
-   * left the body invisible in dark mode (the previous bug). */
-  section.etymology p {
-    color: color-mix(in srgb, var(--bg) 75%, transparent);
-    font-size: 17px; line-height: 1.6; margin: 0 0 14px;
-  }
-  section.etymology code {
-    font-family: var(--mono); font-size: 14px;
-    background: color-mix(in srgb, var(--bg) 10%, transparent);
+  .core-block p + p { margin-top: 14px; }
+  .core-pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11.5px; letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--accent);
-    padding: 2px 8px; border-radius: 4px;
+    margin-bottom: 18px;
   }
 
-  /* PRIVACY */
-  section.privacy {
-    background: var(--accent); color: white;
-    padding: 80px 0;
+  /* ───────── Browse HN differently — feed list ───────── */
+  .feeds {
+    display: grid; gap: 0;
+    border-top: 1px solid var(--rule);
   }
-  section.privacy .container { max-width: 760px; }
-  section.privacy h2 {
-    font-family: "SF Pro Display", system-ui;
-    font-size: clamp(32px, 5vw, 48px); font-weight: 200; letter-spacing: -0.02em;
-    margin: 0 0 16px;
+  .feed-row {
+    display: grid; align-items: baseline;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--rule);
   }
-  section.privacy p { font-size: 18px; line-height: 1.55; margin: 0 0 12px;
-    color: rgba(255,255,255,0.92); }
-  section.privacy code {
-    background: rgba(255,255,255,0.18); padding: 1px 6px; border-radius: 4px;
-    font-family: var(--mono); font-size: 14px;
+  @media (min-width: 720px) {
+    .feed-row { grid-template-columns: 220px 1fr; gap: 32px; align-items: baseline; }
+  }
+  .feed-name {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    font-style: italic;
+  }
+  .feed-name .num {
+    display: inline-block; margin-right: 12px;
+    font-family: var(--mono); font-style: normal;
+    font-size: 13px; color: var(--ink-3);
+    letter-spacing: 0.05em; vertical-align: 3px;
+  }
+  .feed-desc {
+    color: var(--ink-2);
+    font-size: 16.5px;
+    line-height: 1.55;
+    max-width: 60ch;
   }
 
-  /* FOOTER */
+  .bestof-card {
+    margin-top: 48px;
+    padding: 36px 36px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: var(--paper-2);
+  }
+  .bestof-card .label {
+    font-family: var(--mono);
+    font-size: 11.5px; letter-spacing: 0.18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .bestof-card h3 {
+    font-family: var(--serif);
+    font-size: clamp(24px, 3vw, 30px);
+    font-weight: 400; font-style: italic;
+    letter-spacing: -0.012em; line-height: 1.25;
+    margin-bottom: 12px;
+  }
+  .bestof-card p { color: var(--ink-2); font-size: 16.5px; line-height: 1.6; max-width: 56ch; }
+  .bestof-windows {
+    margin-top: 22px;
+    display: flex; flex-wrap: wrap; gap: 8px 20px;
+    font-family: var(--mono); font-size: 13px;
+    color: var(--ink-3); letter-spacing: 0.04em;
+  }
+  .bestof-windows span { color: var(--ink-2); }
+
+  /* ───────── Local-first — engineering ledger ───────── */
+  section.local {
+    background: var(--paper-2);
+  }
+  .ledger {
+    border-top: 1px solid var(--rule);
+    margin-top: 8px;
+  }
+  .ledger-row {
+    display: grid; gap: 6px;
+    grid-template-columns: 1fr;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (min-width: 720px) {
+    .ledger-row { grid-template-columns: 200px 1fr 220px; gap: 32px; align-items: baseline; }
+  }
+  .ledger-key {
+    font-family: var(--mono);
+    font-size: 12.5px; letter-spacing: 0.05em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .ledger-val {
+    color: var(--ink);
+    font-size: 16.5px;
+    line-height: 1.5;
+  }
+  .ledger-note {
+    color: var(--ink-3);
+    font-size: 13.5px;
+    font-family: var(--mono);
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+  }
+
+  /* ───────── Open source — quiet block ───────── */
+  .opensource {
+    display: grid; gap: 56px; align-items: start;
+  }
+  @media (min-width: 880px) {
+    .opensource { grid-template-columns: 1fr 1fr; gap: 80px; }
+  }
+  .opensource h2 { margin-bottom: 20px; }
+  .opensource p {
+    color: var(--ink-2);
+    font-size: 17px; line-height: 1.6;
+    max-width: 50ch;
+  }
+  .opensource p + p { margin-top: 14px; }
+  .repo-card {
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 26px 28px;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.7;
+  }
+  .repo-card .prompt { color: var(--ink-3); user-select: none; }
+  .repo-card .cmd { color: var(--ink); }
+  .repo-card .out { color: var(--ink-3); }
+  .repo-card a { color: var(--accent); }
+  .repo-card a:hover { text-decoration: underline; }
+  .repo-card .pad { display: block; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule-2); }
+
+  /* ───────── Etymology ───────── */
+  .etymology {
+    background: var(--paper);
+  }
+  .etymology .narrow {
+    text-align: left;
+  }
+  .etymology .eyebrow { margin-bottom: 22px; }
+  .etymology h2 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.012em;
+    margin-bottom: 32px;
+  }
+  .etymology p {
+    color: var(--ink-2);
+    font-size: 18px;
+    line-height: 1.65;
+    max-width: 60ch;
+    margin-bottom: 18px;
+  }
+  .etymology code, code.path {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 1px 7px;
+    border-radius: 4px;
+    letter-spacing: 0;
+  }
+  .etymology .sign {
+    margin-top: 36px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ───────── Footer ───────── */
   footer.foot {
-    background: var(--bg-alt);
-    padding: 32px 0;
-    color: var(--ink-3); font-size: 14px;
+    padding: 56px 0 72px;
+    border-top: 1px solid var(--rule-2);
+    color: var(--ink-3);
+    font-size: 14px;
   }
-  footer.foot .container { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  footer.foot a { color: var(--ink-2); text-decoration: none; }
-  footer.foot a:hover { color: var(--accent); }
-  ::selection { background: var(--accent); color: white; }
+  footer.foot .wrap {
+    display: flex; align-items: baseline; justify-content: space-between;
+    flex-wrap: wrap; gap: 18px;
+  }
+  footer.foot .colophon {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+  }
+  footer.foot nav.links {
+    display: flex; gap: 26px; flex-wrap: wrap;
+  }
+  footer.foot nav.links a {
+    color: var(--ink-2);
+    font-size: 14px;
+    transition: color 120ms ease;
+  }
+  footer.foot nav.links a:hover { color: var(--accent); }
+
+  /* ───────── Restraint on motion ───────── */
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .btn, .btn .arr, .nav-links a { transition: none; }
+    .btn:hover { transform: none; }
+  }
 </style>
 </head>
 <body>
 
 <nav class="top">
-  <div class="container">
-    <div class="brand">
-      <div class="brand-mark"><span></span><span></span><span></span></div>
+  <div class="wrap">
+    <a href="#" class="brand">
+      <span class="brand-mark"><span></span><span></span><span></span></span>
       Spool
-    </div>
+    </a>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#listen">Listen</a>
-      <a href="#hack">Hack on it</a>
-      <a href="https://github.com/ctaloi/spool">GitHub</a>
-      <a href="#" class="nav-cta">Get on iOS</a>
+      <a href="#read">Read</a>
+      <a href="#browse">Browse</a>
+      <a href="#local">Local</a>
+      <a href="#source">Source</a>
+      <a href="https://github.com/ctaloi/spool" class="primary">GitHub</a>
     </div>
   </div>
 </nav>
 
+<!-- ───────────────────────────── HERO ───────────────────────────── -->
 <section class="hero">
-  <div class="container hero-grid">
+  <div class="wrap hero-grid">
     <div>
-      <h1>Read it.<br>Hear it.<br><span class="accent">All on device.</span></h1>
-      <p class="hero-sub">A calm iPhone and iPad reader for Hacker News with on-device AI summaries and a hands-free audio queue. Zero tracking, zero accounts required.</p>
+      <span class="eyebrow">Spool · for iPhone &amp; iPad</span>
+      <h1>
+        A calmer way<br>
+        to read<br>
+        <span class="accent">Hacker News.</span>
+      </h1>
+      <p class="lede hero-sub">
+        On-device summaries. A hands-free audio queue. No accounts,
+        no analytics, no cloud APIs. The whole app runs on your phone.
+      </p>
       <div class="hero-ctas">
-        <a href="#" class="btn-primary">Coming to the App Store</a>
-        <a href="#features" class="btn-secondary">See features</a>
+        <a href="#" class="btn btn-primary">
+          Coming to the App Store
+          <span class="arr" aria-hidden="true">→</span>
+        </a>
+        <a href="#read" class="btn btn-secondary">A short tour</a>
       </div>
       <div class="hero-meta">
-        <span>iOS 26 · iPhone &amp; iPad</span>
-        <span>Apple Foundation Models</span>
-        <span>No accounts required</span>
+        <span>iPhone &amp; iPad</span>
+        <span>iOS 26</span>
+        <span>Open source</span>
       </div>
     </div>
-    <div class="device device-large">
-      <img class="device-screenshot"
-           src="screenshots/_web/hero-light.png"
-           alt="Spool app — Top Stories feed on iPhone, story rows with thumbnails and score"
+    <div class="device device-lg">
+      <img src="screenshots/_web/hero-light.png"
+           alt="Spool — the Top Stories feed on iPhone, with story rows, scores, and a small audio queue badge in the toolbar."
            loading="eager"
            width="660" height="1434">
     </div>
   </div>
 </section>
 
-<!-- ON-DEVICE STRIP -->
-<section class="strip">
-  <div class="container">
-    <div class="strip-icon">⚡</div>
-    <div class="strip-text">
-      <strong>The whole thing runs on your phone.</strong>
-      Summaries from Apple's on-device language model. TTS via the iOS speech synthesizer. Your HN cookie in the system keychain. No proxy server. No analytics. No third-party SDKs.
+<!-- ───────────────────── THE CORE EXPERIENCE ───────────────────── -->
+<section id="read">
+  <div class="wrap">
+
+    <div class="section-head">
+      <span class="eyebrow">The Spool</span>
+      <h2>Read it. Hear it. Sit with it.</h2>
+      <p class="lede">
+        Spool turns the firehose into something you can move through
+        at your own pace — by reading, by listening, or by reading
+        along while it reads to you.
+      </p>
+    </div>
+
+    <div class="core-grid">
+
+      <!-- BLOCK 1 — audio queue -->
+      <div class="core-block">
+        <div>
+          <span class="core-pill">Listen</span>
+          <h3>A queue for the morning walk.</h3>
+          <p>
+            Add stories to your Spool over coffee, on the train, in
+            the gaps between things. When you're ready, hit Play All
+            and the phone reads each one to you as conversational
+            prose — article first, then the discussion.
+          </p>
+          <p>
+            Highlighting follows the spoken sentence. Pause to reread
+            a line. AirPods, CarPlay, and the lock screen all work
+            because the app uses iOS the way iOS expects to be used.
+          </p>
+        </div>
+        <div class="device device-md">
+          <img src="screenshots/_web/listen-dark.png"
+               alt="Now Playing — a Spool audio summary streaming on iPhone, with the spoken sentence highlighted and large playback controls."
+               loading="lazy"
+               width="560" height="1217">
+        </div>
+      </div>
+
+      <!-- BLOCK 2 — summaries -->
+      <div class="core-block flip">
+        <div>
+          <span class="core-pill">Summarize</span>
+          <h3>The shape of a story, before you commit.</h3>
+          <p>
+            Tap Summarize on any story and Apple's on-device language
+            model produces a structured take: the article's main
+            claim, the concrete details that matter, and a paragraph
+            called <em>Why HN cares</em> that names the angle the
+            thread is actually arguing about.
+          </p>
+          <p>
+            The prompts are an editable text file in Settings. Don't
+            like the framing? Rewrite it. Your edits live on the
+            phone.
+          </p>
+        </div>
+        <div class="device device-md">
+          <img src="screenshots/_web/summarize-light.png"
+               alt="Article-summary prompt — the editable system prompt that drives Spool's summary card, shown as monospaced text on iPhone."
+               loading="lazy"
+               width="560" height="1217">
+        </div>
+      </div>
+
+      <!-- BLOCK 3 — comments, threads, attention -->
+      <div class="core-block">
+        <div>
+          <span class="core-pill">Discuss</span>
+          <h3>Follow a thread without losing the room.</h3>
+          <p>
+            Comment trees collapse where you'd expect them to.
+            Sentiment-aware digests summarize the tone of a thread
+            before you read it. You can ask a thread a question and
+            get an answer grounded in the comments themselves —
+            still entirely on the device.
+          </p>
+          <p>
+            Sign in if you want to vote, post, or reply. Spool talks
+            directly to <code class="path">news.ycombinator.com</code>.
+            There is no Spool server in between.
+          </p>
+        </div>
+        <div class="device device-md">
+          <img src="screenshots/_web/summarize-dark.png"
+               alt="A Spool summary card in dark mode, showing the structured article summary and Why HN Cares paragraph."
+               loading="lazy"
+               width="560" height="1217">
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
 
-<!-- FEATURES -->
-<section class="features" id="features">
-  <div class="container">
-    <p class="section-eyebrow">Features</p>
-    <h2 class="section-heading">Built for power readers who don't want yet another tracking app.</h2>
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-icon">📖</div>
-        <h3>Every HN feed</h3>
-        <p>Top, New, Best, Ask HN, Show HN, Jobs. Plus Best-of windows for today, this week, this month, this year.</p>
+<!-- ───────────────────── BROWSE HN DIFFERENTLY ───────────────────── -->
+<section id="browse">
+  <div class="wrap">
+
+    <div class="section-head">
+      <span class="eyebrow">Different lenses</span>
+      <h2>Six ways to look at the same site.</h2>
+      <p class="lede">
+        The HN feeds aren't all reading the same Hacker News — they
+        each show a different slice. Spool puts them where you can
+        switch between them without thinking.
+      </p>
+    </div>
+
+    <div class="feeds">
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">01</span>Top</div>
+        <div class="feed-desc">The front page, in the order HN ranks it. The default for most days.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">✨</div>
-        <h3>On-device summaries</h3>
-        <p>Apple Foundation Models running locally on your phone. No API keys, no data ever leaves the device.</p>
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">02</span>New</div>
+        <div class="feed-desc">Everything submitted in the last few hours, before the rankings have settled. The raw firehose.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🎧</div>
-        <h3>Spool audio queue</h3>
-        <p>Add stories for hands-free listening. Each gets a 90-second conversational audio summary.</p>
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">03</span>Best</div>
+        <div class="feed-desc">HN's pick of the recent past. A steadier, slower view than Top.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">📜</div>
-        <h3>Sentence-tracked playback</h3>
-        <p>Highlighted text follows the spoken sentence so you can read along, pause to reread, resume to listen.</p>
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">04</span>Ask &amp; Show</div>
+        <div class="feed-desc">Questions and projects from the community. The quiet corners of the site.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">💬</div>
-        <h3>Threaded comments</h3>
-        <p>Collapse subtrees, jump between top-level threads. Sentiment-aware discussion digests, ask the thread a question.</p>
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">05</span>Jobs</div>
+        <div class="feed-desc">Posts from companies hiring on HN. Hidden by default if you'd rather it disappear.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔍</div>
-        <h3>HN search</h3>
-        <p>Full Algolia-powered search with recent-query suggestions and relevance / newest sort.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📝</div>
-        <h3>Vote · post · reply</h3>
-        <p>Sign in with your HN account. Spool talks directly to news.ycombinator.com — no proxy server.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📌</div>
-        <h3>Saved &amp; Archive</h3>
-        <p>Bookmark anything for later. Spool items you've listened to land in a restorable Archive — never lost.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📱</div>
-        <h3>Configurable widget</h3>
-        <p>Home-screen widget with a feed picker. Pin Top, New, or Ask HN — long-press to switch.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">⚙️</div>
-        <h3>Editable AI prompts</h3>
-        <p>Rewrite every system prompt in Settings. Defaults work great; tinker if you want a different style.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🌗</div>
-        <h3>iPad &amp; Liquid Glass</h3>
-        <p>Real NavigationSplitView on iPad. iOS 26 Liquid Glass effects across the surface. Native dark mode.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔔</div>
-        <h3>Mention notifications</h3>
-        <p>Optional background check for replies to your comments. Silent when there's nothing; never spammy.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔗</div>
-        <h3>Spotlight + Siri</h3>
-        <p>Saved stories show up in Spotlight. Siri can summarize today's top story via a shortcut.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📤</div>
-        <h3>Share extension</h3>
-        <p>Send any URL to Spool from Safari, Mail, Messages. Get a summary back without leaving the source app.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🚫</div>
-        <h3>Zero tracking</h3>
-        <p>No analytics. No crash SDKs. No third-party scripts. <code>NSPrivacyTracking: false</code> in our manifest.</p>
+      <div class="feed-row">
+        <div class="feed-name"><span class="num">06</span>Trending</div>
+        <div class="feed-desc">Stories climbing fastest, computed locally from score snapshots on your phone.</div>
       </div>
     </div>
+
+    <div class="bestof-card">
+      <div class="label">Best of</div>
+      <h3>The stories HN kept coming back to.</h3>
+      <p>
+        A slower look at what mattered. Browse the best-loved
+        threads from today, the week, the month, or the year — sorted
+        by points, filtered to durable discussions. It's the same
+        site, read like an archive instead of a feed.
+      </p>
+      <div class="bestof-windows">
+        <span>Today</span><span>This Week</span><span>This Month</span><span>This Year</span>
+      </div>
+    </div>
+
   </div>
 </section>
 
-<!-- DEEP DIVE: LISTEN -->
-<section class="deep" id="listen">
-  <div class="container deep-grid">
-    <div>
-      <span class="pill">Listen</span>
-      <h2>Eat your queue on a walk.</h2>
-      <p>Add stories to your Spool throughout the day. When you're ready, tap Play All and the on-device model reads each one's article + comments to you as conversational prose, in the order you queued them.</p>
-      <p>Sentence-by-sentence highlighting lets you follow the spoken text on screen. Speed up, slow down, skip. AirPods, CarPlay, lock-screen controls — it just works.</p>
+<!-- ───────────────────── LOCAL-FIRST ───────────────────── -->
+<section id="local" class="local">
+  <div class="wrap">
+
+    <div class="section-head">
+      <span class="eyebrow">Local-first</span>
+      <h2>Built like software used to be built.</h2>
+      <p class="lede">
+        Spool isn't a thin client on someone else's server. Every
+        feature that matters runs on the phone itself. There's no
+        backend to compromise, no quota to hit, no &ldquo;we improved
+        our model&rdquo; email to receive.
+      </p>
     </div>
-    <div class="device device-medium">
-      <img class="device-screenshot"
-           src="screenshots/_web/listen-dark.png"
-           alt="Now Playing — Gemini 3.5 Flash article summary streaming in spoken audio with playback controls"
-           loading="lazy"
-           width="560" height="1217">
+
+    <div class="ledger">
+      <div class="ledger-row">
+        <div class="ledger-key">Summaries</div>
+        <div class="ledger-val">Apple Foundation Models, running on the device's neural engine.</div>
+        <div class="ledger-note">No API keys · No cloud fallback</div>
+      </div>
+      <div class="ledger-row">
+        <div class="ledger-key">Voice</div>
+        <div class="ledger-val">iOS speech synthesizer, rendered offline to a local cache.</div>
+        <div class="ledger-note">AVSpeechSynthesizer</div>
+      </div>
+      <div class="ledger-row">
+        <div class="ledger-key">Search</div>
+        <div class="ledger-val">HN's public Algolia index, queried directly from your phone.</div>
+        <div class="ledger-note">No middleman</div>
+      </div>
+      <div class="ledger-row">
+        <div class="ledger-key">Sign-in</div>
+        <div class="ledger-val">HN cookies in the iOS keychain, talking to news.ycombinator.com.</div>
+        <div class="ledger-note">No Spool account · No proxy</div>
+      </div>
+      <div class="ledger-row">
+        <div class="ledger-key">Storage</div>
+        <div class="ledger-val">SwiftData on the device. Saved stories, history, and your queue.</div>
+        <div class="ledger-note">No iCloud sync (yet)</div>
+      </div>
+      <div class="ledger-row">
+        <div class="ledger-key">Analytics</div>
+        <div class="ledger-val">None.</div>
+        <div class="ledger-note">NSPrivacyTracking: false</div>
+      </div>
     </div>
+
   </div>
 </section>
 
-<!-- DEEP DIVE: EDITABLE PROMPTS -->
-<section class="deep" id="summary" style="background: var(--bg-alt);">
-  <div class="container deep-grid reverse">
-    <div>
-      <span class="pill">Summarize, your way</span>
-      <h2>The prompts are yours.</h2>
-      <p>Spool ships with prompts tuned for HN — concrete tradeoffs, "Why HN cares," no fluff. But the model running on your phone is just following instructions, and those instructions are an editable text file in Settings.</p>
-      <p>Don't like the framing? Rewrite it. Want a one-line TL;DR instead of bullets? Rewrite it. Your changes stay on-device, version-stamped against the bundled default so you can see when ours has moved on.</p>
-    </div>
-    <div class="device device-medium">
-      <picture>
-        <source srcset="screenshots/_web/summarize-dark.png" media="(prefers-color-scheme: dark)">
-        <img src="screenshots/_web/summarize-light.png"
-             alt="Editable Article-summary prompt — the system prompt that drives the summary card, shown in monospaced text with a Save button"
-             loading="lazy"
-             width="560" height="1217">
-      </picture>
-    </div>
-  </div>
-</section>
+<!-- ───────────────────── OPEN SOURCE ───────────────────── -->
+<section id="source">
+  <div class="wrap">
 
-<!-- DEEP DIVE: WIDGET + iPAD -->
-<section class="deep">
-  <div class="container deep-grid">
-    <div>
-      <span class="pill">Home screen</span>
-      <h2>Pin the feed you actually read.</h2>
-      <p>The Spool widget shows the top stories from any HN feed — Top, New, Best, Ask, Show, or Jobs. Long-press to change the feed without leaving your home screen.</p>
-      <p>Three sizes. Tap any story to deep-link into the app at that thread. Refreshes itself every 30 minutes.</p>
-    </div>
-    <div class="device device-medium">
-      <img class="device-screenshot"
-           src="screenshots/_web/widget-dark.png"
-           alt="iPhone home screen with the Spool widget showing the top 5 Hacker News stories"
-           loading="lazy"
-           width="560" height="1217">
-    </div>
-  </div>
-</section>
-
-<!-- HACK ON IT -->
-<section class="deep" id="hack" style="background: var(--bg-alt);">
-  <div class="container">
-    <div class="deep-grid">
+    <div class="opensource">
       <div>
-        <span class="pill">For hackers</span>
-        <h2>Tinker with it. It's yours.</h2>
-        <p>Spool was built by someone who reads HN every morning, for people who read HN every morning. It ships with sane defaults — and a set of knobs so you can make it behave the way you want.</p>
-        <p>Toggles for thumbnails. Hide-read across feeds. A minimum-comments filter that kills drive-by submissions. Pick which HN categories show up in the sidebar (skip Ask HN? gone). Every preference persists across launches, no account required.</p>
+        <span class="eyebrow" style="margin-bottom: 22px; display:inline-block;">Open source</span>
+        <h2>Read the code. Or don't.</h2>
+        <p>
+          Spool is MIT-licensed and the entire app lives on GitHub.
+          Open it in Xcode, change the wording you don't like, build
+          your own copy.
+        </p>
+        <p>
+          It's built by one person who reads HN every morning, for
+          people who read HN every morning. Bugs and ideas go in the
+          issue tracker; that's where feedback lives.
+        </p>
       </div>
-      <div class="device device-medium">
-        <img class="device-screenshot"
-             src="screenshots/_web/settings-light.png"
-             alt="Display settings — toggles for thumbnails and hide-read, minimum-comments stepper, visible categories list"
-             loading="lazy"
-             width="560" height="1217">
-      </div>
-    </div>
-
-    <div class="feature-grid" style="margin: 56px 0 32px;">
-      <div class="feature-card">
-        <div class="feature-icon">📝</div>
-        <h3>Rewrite the prompts</h3>
-        <p>Every AI system prompt — article summary, comments digest, audio variants, Q&amp;A, section overview — is editable in Settings. Stored on-device. Versioned so updates surface as a soft "default changed" badge.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🧭</div>
-        <h3>Hide what you don't read</h3>
-        <p>Skip Ask HN? Hide it. Want Jobs out of the picker? Hidden categories disappear from the sidebar AND the toolbar feed picker. Setting persists across launches.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🎛️</div>
-        <h3>Configurable widget</h3>
-        <p>Pin the widget to Top, New, Best, Ask HN, Show HN, or Jobs. Run multiple instances each pinned to a different feed. Configurable via the iOS widget editor — no app open required.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔧</div>
-        <h3>Minimum-comments filter</h3>
-        <p>Hide drive-by submissions below your threshold. Set it once in Settings → Display. Applies to category, trending, and best-of feeds — never to your Saved list or Spool queue.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔔</div>
-        <h3>Notifications, opt-in</h3>
-        <p>Mention notifications fire from a background refresh check. Off by default unless you flip the toggle. Cancelable from Settings without revoking iOS permissions.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔓</div>
-        <h3>Source on GitHub</h3>
-        <p>Read the code, fork it, file issues. <a href="https://github.com/ctaloi/spool" style="color: var(--accent); text-decoration: none; font-weight: 600;">github.com/ctaloi/spool</a></p>
+      <div>
+        <div class="repo-card" aria-label="Clone the Spool repository">
+          <span class="prompt">$</span> <span class="cmd">git clone https://github.com/ctaloi/spool.git</span><br>
+          <span class="prompt">$</span> <span class="cmd">cd spool &amp;&amp; xcodegen generate</span><br>
+          <span class="prompt">$</span> <span class="cmd">open Spool.xcodeproj</span>
+          <span class="pad">
+            <span class="out">→ pure SwiftUI · no third-party deps</span><br>
+            <span class="out">→ <a href="https://github.com/ctaloi/spool">github.com/ctaloi/spool</a></span>
+          </span>
+        </div>
       </div>
     </div>
 
-    <div style="background: var(--surface); border: 1px solid var(--hair); border-radius: 18px; padding: 28px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap;">
-      <div style="flex: 1; min-width: 280px;">
-        <strong style="display: block; margin-bottom: 4px;">Found a bug? Have a feature idea?</strong>
-        <span style="color: var(--ink-2); font-size: 15px;">File an issue on GitHub — that's where feedback lives. No support email to lose your message in.</span>
-      </div>
-      <a href="https://github.com/ctaloi/spool/issues" class="btn-primary" style="text-decoration: none;">Open an issue</a>
-    </div>
   </div>
 </section>
 
-<!-- ETYMOLOGY -->
+<!-- ───────────────────── ETYMOLOGY ───────────────────── -->
 <section class="etymology" id="name">
-  <div class="container">
-    <span class="pill">Why "Spool"</span>
-    <h2>The name lives in <code>/var/spool/news</code>.</h2>
-    <p>Spool comes from <code>/var/spool/news</code> — the canonical Unix path where USENET news was cached on every news server in the 80s and 90s. USENET was the spiritual ancestor of Hacker News: same culture, same threading, same crowd, just thirty years earlier.</p>
-    <p>The path lives on as a quiet shoutout to where this all started — when reading the news meant your machine had it cached locally, and the conversation was happening between people who wrote the software they ran.</p>
-    <p>It also describes what the app does. Your queue is a spool. Pulled-down stories, ready to play.</p>
+  <div class="narrow">
+    <span class="eyebrow">Why &ldquo;Spool&rdquo;</span>
+    <h2>The name lives in <code class="path">/var/spool/news</code>.</h2>
+    <p>
+      <code>/var/spool/news</code> is the canonical Unix path where
+      USENET news was cached on every news server in the 80s and 90s.
+      USENET was the spiritual ancestor of Hacker News: same culture,
+      same threading, same crowd, thirty years earlier.
+    </p>
+    <p>
+      Spool is a small shoutout to that era — when reading the news
+      meant your machine had it cached locally, and the conversation
+      was between people who wrote the software they ran.
+    </p>
+    <p>
+      It also describes what the app does. Your queue is a spool.
+      Pulled-down stories, waiting on the device, ready to play.
+    </p>
+    <div class="sign">— Made for people who like the internet.</div>
   </div>
 </section>
 
-<!-- PRIVACY -->
-<section class="privacy">
-  <div class="container">
-    <h2>The whole thing runs on your phone.</h2>
-    <p>No analytics SDKs. No third-party scripts. No "anonymous" pings to anywhere. <code>NSPrivacyTracking</code> is set to <code>false</code> in our privacy manifest.</p>
-    <p>Reading is anonymous. Signing in (to vote, post, reply) talks directly to <code>news.ycombinator.com</code> and stores cookies only in the system keychain. There's no Spool server. There never will be.</p>
-  </div>
-</section>
-
+<!-- ───────────────────── FOOTER ───────────────────── -->
 <footer class="foot">
-  <div class="container">
-    <span>Made with Swift &amp; Liquid Glass.</span>
-    <span>
-      <a href="https://github.com/ctaloi/spool">Source</a> &nbsp;·&nbsp;
-      <a href="https://github.com/ctaloi/spool/issues">Feedback &amp; bugs</a>
-    </span>
+  <div class="wrap">
+    <span class="colophon">Spool · written in Swift · made on a quiet weekend.</span>
+    <nav class="links" aria-label="Footer">
+      <a href="https://github.com/ctaloi/spool">GitHub</a>
+      <a href="#local">Privacy</a>
+      <a href="https://github.com/ctaloi/spool/issues">Feedback</a>
+      <a href="#">App Store</a>
+    </nav>
   </div>
 </footer>
 
