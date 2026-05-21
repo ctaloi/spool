@@ -164,7 +164,20 @@ git clone git@github.com:ctaloi/spool-website.git
 To refresh the page screenshots after a UI change in this repo:
 
 ```sh
-# 1. Drop new captures into appstore/screenshots/iphone-6.9/
+# 1. Drop new captures into appstore/screenshots/iphone-6.9/.
+#    Each view has a light + (optional) dark variant — the file
+#    naming is paired:
+#
+#      01-top-stories.png       (light)
+#      01-top-stories-dark.png  (dark, optional)
+#      02-now-playing.png + 02-now-playing-dark.png
+#      03-editable-prompts.png + 03-editable-prompts-dark.png
+#      04-widget.png + 04-widget-dark.png
+#      05-customize.png + 05-customize-dark.png
+#
+#    When a `-dark.png` is missing the tool falls back to the
+#    light copy so the website's <picture> always resolves.
+#
 # 2. Regenerate the web-sized variants — writes to ../spool-website/screenshots/_web/
 swift tools/make_web_screenshots.swift
 
