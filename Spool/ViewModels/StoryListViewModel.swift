@@ -95,16 +95,4 @@ final class StoryListViewModel: ObservableObject {
         }
     }
 
-    func share(_ story: HNItem) {
-        guard let urlString = story.url, let url = URL(string: urlString) else { return }
-        let activityVC = UIActivityViewController(
-            activityItems: [url, story.title ?? ""],
-            applicationActivities: nil
-        )
-        // Find the key window to present from
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first {
-            window.rootViewController?.present(activityVC, animated: true)
-        }
-    }
 }

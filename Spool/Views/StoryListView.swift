@@ -1323,12 +1323,12 @@ struct StoryListView: View {
             }
             .tint(.purple)
 
-            Button {
-                viewModel.share(story)
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
+            if let url = story.url.flatMap(URL.init(string:)) {
+                ShareLink(item: url, preview: SharePreview(story.title ?? "Hacker News story")) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .tint(.blue)
             }
-            .tint(.blue)
         }
     }
 

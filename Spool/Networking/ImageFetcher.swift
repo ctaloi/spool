@@ -33,6 +33,13 @@ actor ImageFetcher {
         if let hit = memoryCache.object(forKey: url as NSURL) {
             return hit
         }
+        // Skip non-HTTPS up front. App Transport Security blocks
+        // these anyway, but going through URLSession just to fail
+        // floods the console with "ATS policy requires secure
+        // connection" errors per row. Better to refuse cleanly.
+        guard url.scheme?.lowercased() == "https" else {
+            throw URLError(.cannotConnectToHost)
+        }
         let (data, response) = try await session.data(from: url)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
