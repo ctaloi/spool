@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import CoreSpotlight
-import BackgroundTasks
 
 @main
 struct SpoolApp: App {
@@ -59,38 +58,10 @@ struct SpoolApp: App {
         UINavigationBar.appearance().scrollEdgeAppearance = scrollEdge
         UINavigationBar.appearance().standardAppearance = scrolled
         UINavigationBar.appearance().compactAppearance = scrolled
-
-        // Register the BGAppRefreshTask handler. MUST happen during
-        // app launch (before `applicationDidFinishLaunching` returns)
-        // or iOS rejects every subsequent submit() call for this
-        // identifier — meaning the Mentions feature would never run
-        // in the background.
-        registerMentionsBackgroundTask()
-    }
-
-    private func registerMentionsBackgroundTask() {
-        BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: MentionsNotifier.taskIdentifier,
-            using: nil
-        ) { task in
-            // Schedule the next run immediately so iOS has a request
-            // queued for the next opportunity, even if this run fails
-            // or times out.
-            MentionsNotifier.scheduleNextRefresh()
-
-            let username = UserDefaults.standard.string(forKey: "hn.user")
-            let work = Task {
-                _ = await MentionsNotifier.runMentionsCheckAndNotify(username: username)
-                task.setTaskCompleted(success: true)
-            }
-            // iOS hands the BG task ~30 s. If we exceed, the system
-            // tears us down and would otherwise call setTaskCompleted
-            // for us with success: false — pre-empt by cancelling our
-            // own work so partial state stays consistent.
-            task.expirationHandler = {
-                work.cancel()
-            }
-        }
+        // BGTask handler registration happens via the SwiftUI
+        // `.backgroundTask(.appRefresh(...))` modifier on the Scene
+        // below — that's the iOS 16+ equivalent of calling
+        // BGTaskScheduler.shared.register manually.
     }
 
     var body: some Scene {
