@@ -482,7 +482,14 @@ struct StoryListView: View {
     /// their error / loading variants.
     @ViewBuilder
     private var content: some View {
-        List(selection: $selectedStory) {
+        // No `selection:` binding here — iOS 26 draws a hard accent-
+        // colored outline around the selected row in iPad
+        // NavigationSplitView that `.listRowBackground`,
+        // `.focusEffectDisabled`, and hover modifiers can't suppress.
+        // Each row wraps its content in a Button that updates
+        // `selectedStory` directly; the binding still drives the
+        // detail pane on both iPhone and iPad.
+        List {
             if isSearching && feedSource.supportsSearch {
                 searchRows
             } else {
@@ -907,14 +914,18 @@ struct StoryListView: View {
             }
         } else {
             ForEach(archive, id: \.id) { item in
-                StoryRowView(
-                    story: item.asHNItem,
-                    context: item.archivedAt.map { "Archived \($0.formatted(.relative(presentation: .named)))" } ?? "Archived",
-                    isRead: readIDs.contains(item.id),
-                    isSaved: savedIDs.contains(item.id),
-                    isSelected: selectedStory?.id == item.id
-                )
-                .tag(item.asHNItem)
+                Button {
+                    selectedStory = item.asHNItem
+                } label: {
+                    StoryRowView(
+                        story: item.asHNItem,
+                        context: item.archivedAt.map { "Archived \($0.formatted(.relative(presentation: .named)))" } ?? "Archived",
+                        isRead: readIDs.contains(item.id),
+                        isSaved: savedIDs.contains(item.id),
+                        isSelected: selectedStory?.id == item.id
+                    )
+                }
+                .buttonStyle(.plain)
                 .listRowBackground(rowBackground(for: item.asHNItem))
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
@@ -1273,17 +1284,24 @@ struct StoryListView: View {
 
     @ViewBuilder
     private func storyRow(story: HNItem, context: String? = nil) -> some View {
-        StoryRowView(
-            story: story,
-            context: context,
-            isRead: readIDs.contains(story.id),
-            isSaved: savedIDs.contains(story.id),
-            isSpooled: spooledIDs.contains(story.id),
-            isSelected: selectedStory?.id == story.id,
-            suppressTypeBadge: dedicatedKindFeed,
-            hideRawScore: feedSource == .trending
-        )
-        .tag(story)
+        // Button wrapper drives selection directly so we can drop
+        // `List(selection:)` and the iPad outline that comes with it.
+        // `.buttonStyle(.plain)` keeps the row's appearance intact.
+        Button {
+            selectedStory = story
+        } label: {
+            StoryRowView(
+                story: story,
+                context: context,
+                isRead: readIDs.contains(story.id),
+                isSaved: savedIDs.contains(story.id),
+                isSpooled: spooledIDs.contains(story.id),
+                isSelected: selectedStory?.id == story.id,
+                suppressTypeBadge: dedicatedKindFeed,
+                hideRawScore: feedSource == .trending
+            )
+        }
+        .buttonStyle(.plain)
         .listRowBackground(rowBackground(for: story))
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
