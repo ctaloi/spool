@@ -22,6 +22,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 displaySection
+                voiceSection
                 appleIntelligenceSection
                 promptsSection
                 if auth.isLoggedIn {
@@ -53,6 +54,19 @@ struct SettingsView: View {
             }
         } footer: {
             Text("Thumbnails, read-story hiding, minimum-comments filter, and which categories appear in the sidebar.")
+        }
+    }
+
+    @ViewBuilder
+    private var voiceSection: some View {
+        Section {
+            NavigationLink {
+                VoicePickerView()
+            } label: {
+                Label("Voice", systemImage: "waveform")
+            }
+        } footer: {
+            Text("Voice used for Spool audio. Switching applies to upcoming items — anything already playing finishes in the previous voice.")
         }
     }
 

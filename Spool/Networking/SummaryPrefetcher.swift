@@ -276,6 +276,20 @@ enum SummaryPrefetcher {
 
     // MARK: - Audio render
 
+    /// Re-render queued audio with whatever voice is currently
+    /// preferred. Called after the user changes the voice preference
+    /// so the cache is warm for the next playback transition — the
+    /// cache key already includes voice, so stale entries naturally
+    /// miss; this just front-loads the render cost.
+    static func rerenderQueueAudio(for items: [SpooledStory], in modelContext: ModelContext) {
+        for item in items {
+            let storyID = item.id
+            Task.detached(priority: .utility) {
+                await Self.renderAudioIfNeeded(storyID: storyID, modelContext: modelContext)
+            }
+        }
+    }
+
     /// Reads the latest playlistScript from the SpooledStory and
     /// renders it to a cached .caf if no cache entry exists yet.
     /// Safe to call multiple times — the cache lookup short-circuits

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import AVFoundation
 
 /// Lets the user pin a specific `AVSpeechSynthesisVoice` for TTS, or
@@ -13,6 +14,7 @@ import AVFoundation
 /// copy. The same filter `SpoolPlayer` applies for its auto-pick.
 struct VoicePickerView: View {
     @EnvironmentObject private var player: SpoolPlayer
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(SettingsKeys.voicePreferenceID) private var preferenceID: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -22,6 +24,12 @@ struct VoicePickerView: View {
     /// voices) by way of the .onChange below.
     @State private var voicesByLanguage: [LanguageGroup] = []
 
+    /// Confirmation message shown after a successful voice change so
+    /// the user understands what's about to happen — current item
+    /// finishes in the old voice, upcoming items use the new one.
+    /// Cleared when the user taps a new selection or leaves the view.
+    @State private var confirmation: String?
+
     struct LanguageGroup: Identifiable {
         let id: String          // e.g., "en-US"
         let displayName: String // e.g., "English (United States)"
@@ -30,6 +38,19 @@ struct VoicePickerView: View {
 
     var body: some View {
         List {
+            if let confirmation {
+                Section {
+                    Label {
+                        Text(confirmation)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .listRowBackground(Theme.accent.opacity(0.08))
+                }
+            }
+
             // Auto pick — clearing the preference returns to
             // SpoolPlayer's highest-quality-match behavior.
             Section {
@@ -124,8 +145,46 @@ struct VoicePickerView: View {
     }
 
     private func select(_ identifier: String?) {
-        preferenceID = identifier ?? ""
+        // Capture the voice the player WAS using so we can name it in
+        // the "current item finishes in {old}" message during active
+        // playback. After invalidateVoiceCache + AppStorage write,
+        // bestVoice() will already return the new voice.
+        let oldVoiceName = player.bestVoice()?.name
+
+        let newID = identifier ?? ""
+        guard newID != preferenceID else { return }
+        preferenceID = newID
         player.invalidateVoiceCache()
+
+        let newVoiceName = player.bestVoice()?.name ?? "the system default"
+
+        // Re-render upcoming queue audio so the next playback
+        // transition isn't held up waiting for a fresh TTS render.
+        // Cache key already includes voice, so old entries are just
+        // ignored — no purge required.
+        let upcoming = upcomingQueueItems()
+        if !upcoming.isEmpty {
+            SummaryPrefetcher.rerenderQueueAudio(for: upcoming, in: modelContext)
+        }
+
+        // Phrase the confirmation differently depending on whether
+        // something's playing right now — the "current item finishes
+        // in old voice" caveat only applies during active playback.
+        if player.isActive, let oldVoiceName, oldVoiceName != newVoiceName {
+            confirmation = "Current item finishes in \(oldVoiceName); upcoming use \(newVoiceName)."
+        } else {
+            confirmation = "Future audio will use \(newVoiceName)."
+        }
+    }
+
+    private func upcomingQueueItems() -> [SpooledStory] {
+        let queue = player.queue
+        guard !queue.isEmpty else { return [] }
+        if let i = player.currentIndex {
+            let next = min(i + 1, queue.count)
+            return Array(queue.suffix(from: next))
+        }
+        return queue
     }
 
     private func reloadVoices() {
