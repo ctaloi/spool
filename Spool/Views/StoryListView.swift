@@ -641,10 +641,18 @@ struct StoryListView: View {
         } else if trending.items.isEmpty {
             statusRow {
                 ContentUnavailableView {
-                    Label("Not enough data yet", systemImage: "chart.line.uptrend.xyaxis")
+                    Label("Trending is still warming up", systemImage: "chart.line.uptrend.xyaxis")
                 } description: {
-                    Text("Browse a feed a couple of times and come back — Trending uses score changes between your visits to find stories that are climbing fast.")
+                    Text("Trending is computed on your device from score changes between visits — there's no data to compare yet. Open Top a few times over a few hours and stories climbing fastest will surface here.")
                         .multilineTextAlignment(.center)
+                } actions: {
+                    Button {
+                        switchSource(to: .category(.top))
+                    } label: {
+                        Text("Open Top")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Theme.accent)
                 }
             }
         } else {
