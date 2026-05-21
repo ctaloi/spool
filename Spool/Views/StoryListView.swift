@@ -78,6 +78,17 @@ struct StoryListView: View {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// Single Bool the auto-play onChange watches. Was an
+    /// `Array<String?>` derived from every spool row's summary —
+    /// allocated on every SwiftUI body invalidation. This is the
+    /// minimum signal: "the row we're parked on has a playable
+    /// script." Stable while nothing is pending and while the
+    /// pending row's prefetch is still in flight.
+    private var pendingPlayReadyTrigger: Bool {
+        guard let pendingID = pendingPlayStoryID else { return false }
+        return spool.contains { $0.id == pendingID && $0.playlistScript != nil }
+    }
+
     private var recentSearches: [String] {
         recentSearchesRaw
             .split(separator: "\u{0001}", omittingEmptySubsequences: true)
@@ -394,10 +405,13 @@ struct StoryListView: View {
             // pendingPlayStoryID, fired prefetch — once the script
             // shows up via the @Query refresh, this catches it and
             // calls play().
-            .onChange(of: spool.map(\.cachedArticleSummary)) { _, _ in
-                guard let pendingID = pendingPlayStoryID,
-                      spool.contains(where: { $0.id == pendingID && $0.playlistScript != nil })
-                else { return }
+            // Was: `onChange(of: spool.map(\.cachedArticleSummary))`,
+            // which allocated an array of optional strings on every
+            // body invalidation. The cheaper signal is "is the row
+            // we're waiting on actually ready" — a single Bool that
+            // only flips on the relevant prefetch completion.
+            .onChange(of: pendingPlayReadyTrigger) { _, isReady in
+                guard isReady, pendingPlayStoryID != nil else { return }
                 pendingPlayStoryID = nil
                 spoolPlayer.play(items: spool)
                 // The user tapped Play All before the summary was
