@@ -321,8 +321,14 @@ actor HNAuthService {
             throw AuthError.notLoggedIn
         }
 
-        return try Self.extractFormValue(named: "hmac", from: body)
-            ?? { throw AuthError.parsing("Couldn't find reply token. Try signing out and back in.") }()
+        guard let hmac = Self.extractFormValue(named: "hmac", from: body) else {
+            // No hmac on the reply page almost always means the
+            // session cookie expired and HN served us the login form
+            // again. Surface as "sign in to keep posting" instead of
+            // a confusing parser error.
+            throw AuthError.notLoggedIn
+        }
+        return hmac
     }
 
     /// Extract an `<input>` value attribute by `name`, tolerant of

@@ -967,9 +967,18 @@ struct StoryListView: View {
                         // row back at the top of the spool. SwiftData
                         // @Query for `spool` filters on archivedAt so
                         // the row reappears immediately.
+                        //
+                        // Fetch min-position fresh from modelContext
+                        // (not from the @Query snapshot) so two rapid
+                        // restores can't both land on the same value.
                         item.archivedAt = nil
-                        let topPosition = (spool.map(\.position).min() ?? 0) - 1
-                        item.position = topPosition
+                        var descriptor = FetchDescriptor<SpooledStory>(
+                            predicate: #Predicate { $0.archivedAt == nil },
+                            sortBy: [SortDescriptor(\.position)]
+                        )
+                        descriptor.fetchLimit = 1
+                        let minPosition = (try? modelContext.fetch(descriptor).first?.position) ?? 0
+                        item.position = minPosition - 1
                     } label: {
                         Label("Restore", systemImage: "arrow.uturn.backward")
                     }
@@ -1385,7 +1394,15 @@ struct StoryListView: View {
         if let existing = spool.first(where: { $0.id == story.id }) {
             modelContext.delete(existing)
         } else {
-            let nextPosition = (spool.map(\.position).max() ?? -1) + 1
+            // Fetch the live max position from modelContext, not from
+            // the @Query snapshot — @Query updates on the next SwiftUI
+            // pass, so two rapid toggles would both read the stale max
+            // and collide on the same position value.
+            var descriptor = FetchDescriptor<SpooledStory>(
+                sortBy: [SortDescriptor(\.position, order: .reverse)]
+            )
+            descriptor.fetchLimit = 1
+            let maxPosition = (try? modelContext.fetch(descriptor).first?.position) ?? -1
             let queued = SpooledStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
@@ -1393,7 +1410,7 @@ struct StoryListView: View {
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants,
-                position: nextPosition
+                position: maxPosition + 1
             )
             modelContext.insert(queued)
             SummaryPrefetcher.schedulePrefetch(for: queued, in: modelContext)

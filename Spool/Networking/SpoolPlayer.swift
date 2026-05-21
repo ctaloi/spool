@@ -118,6 +118,69 @@ final class SpoolPlayer: NSObject, ObservableObject {
         super.init()
         synth.delegate = self
         setUpRemoteCommands()
+        observeAudioSessionInterruptions()
+    }
+
+    /// Watch for phone calls, Siri, alarms — when iOS interrupts our
+    /// audio session, mirror the state so the play/pause UI doesn't
+    /// lie. On the cached-audio path AVAudioPlayer pauses itself but
+    /// we still own the `state` flag; on the live-synth path we have
+    /// to pause manually too. Wired once at init for the process
+    /// lifetime — SpoolPlayer is an app-scoped singleton.
+    private func observeAudioSessionInterruptions() {
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+        center.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: session
+        )
+        // Apple HIG: pause when the user pulls out their headphones
+        // so we don't blast spoken audio through the device speaker.
+        center.addObserver(
+            self,
+            selector: #selector(handleAudioRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: session
+        )
+    }
+
+    @objc private nonisolated func handleAudioRouteChange(_ note: Notification) {
+        guard let info = note.userInfo,
+              let reasonRaw = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw),
+              reason == .oldDeviceUnavailable
+        else { return }
+        Task { @MainActor in
+            if self.state == .playing { self.toggle() }
+        }
+    }
+
+    @objc private nonisolated func handleAudioSessionInterruption(_ note: Notification) {
+        guard let info = note.userInfo,
+              let typeRaw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeRaw)
+        else { return }
+
+        // Pull `shouldResume` off the notification synchronously
+        // before bouncing to the main actor — userInfo isn't
+        // guaranteed to survive the actor hop on every iOS version.
+        let shouldResume: Bool = {
+            guard let optionsRaw = info[AVAudioSessionInterruptionOptionKey] as? UInt else { return false }
+            return AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
+        }()
+
+        Task { @MainActor in
+            switch type {
+            case .began:
+                if self.state == .playing { self.toggle() }
+            case .ended:
+                if shouldResume, self.state == .paused { self.toggle() }
+            @unknown default:
+                break
+            }
+        }
     }
 
     // MARK: - Voice selection
