@@ -2,11 +2,11 @@ import AppIntents
 import WidgetKit
 
 /// Widget configuration the user edits via long-press → Edit.
-/// Lets them pick which Hacker News feed the widget pulls from.
+/// Lets them pick which HN feed the widget pulls from.
 struct TopStoriesConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Hacker News Widget"
+    static var title: LocalizedStringResource = "Spool Widget"
     static var description = IntentDescription(
-        "Pick which Hacker News feed this widget should display."
+        "Pick which HN feed this widget should display."
     )
 
     @Parameter(title: "Feed", default: .top)

@@ -27,7 +27,11 @@ actor PrefetchGate {
 
     private var foregroundCount: Int = 0
     private var backgroundTasks: [Task<Void, Never>] = []
-    private var backgroundWaiters: [CheckedContinuation<Void, Never>] = []
+    private struct BackgroundWaiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Never>
+    }
+    private var backgroundWaiters: [BackgroundWaiter] = []
 
     /// Marks the start of a foreground (user-tap-driven) inference.
     /// Cancels any background tasks currently registered with the
@@ -51,7 +55,7 @@ actor PrefetchGate {
         foregroundCount -= 1
         if foregroundCount == 0 {
             let resumed = backgroundWaiters.count
-            for cont in backgroundWaiters { cont.resume() }
+            for waiter in backgroundWaiters { waiter.continuation.resume() }
             backgroundWaiters.removeAll()
             if resumed > 0 {
                 prefetchGateLog.debug("Foreground idle: released \(resumed, privacy: .public) background waiters")
@@ -79,10 +83,28 @@ actor PrefetchGate {
     /// checkpoints between subtasks so a foreground tap doesn't
     /// have to wait for the next subtask to finish before getting
     /// CPU back.
+    ///
+    /// Cancellation-safe: if the parked task is cancelled, the
+    /// waiter is removed from the queue and resumed so the caller's
+    /// Task can unwind cleanly (instead of leaking the continuation
+    /// and stalling the gate's release-all behavior).
     func waitForBackgroundSlot() async {
         guard foregroundCount > 0 else { return }
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            backgroundWaiters.append(cont)
+        if Task.isCancelled { return }
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                backgroundWaiters.append(BackgroundWaiter(id: id, continuation: cont))
+            }
+        } onCancel: {
+            Task { await self.removeBackgroundWaiter(id: id) }
+        }
+    }
+
+    private func removeBackgroundWaiter(id: UUID) {
+        if let idx = backgroundWaiters.firstIndex(where: { $0.id == id }) {
+            let entry = backgroundWaiters.remove(at: idx)
+            entry.continuation.resume()
         }
     }
 }

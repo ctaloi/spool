@@ -365,6 +365,7 @@ struct StoryListView: View {
             // listen). Captured by reference so we can read
             // modelContext + the live @Query result.
             .task {
+                let context = modelContext
                 spoolPlayer.onItemFinished = { finished in
                     Task { @MainActor in
                         // Don't delete — move to the Archive. The user
@@ -372,7 +373,17 @@ struct StoryListView: View {
                         // from the archive view. Keeping the row in
                         // the same table (filtered by `archivedAt`)
                         // means no SwiftData migration ceremony.
-                        if let row = spool.first(where: { $0.id == finished.id }) {
+                        //
+                        // Fetch via a fresh FetchDescriptor instead of
+                        // closing over the @Query snapshot — the
+                        // snapshot can diverge from live data, and
+                        // mutating an orphaned SwiftData model after
+                        // it's been deleted from context is a crash.
+                        let finishedID = finished.id
+                        let descriptor = FetchDescriptor<SpooledStory>(
+                            predicate: #Predicate { $0.id == finishedID }
+                        )
+                        if let row = try? context.fetch(descriptor).first {
                             row.archivedAt = .now
                         }
                     }
@@ -938,6 +949,14 @@ struct StoryListView: View {
                 .listRowBackground(rowBackground(for: item.asHNItem))
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
+                        // Drop player reference first if it's still
+                        // holding this @Model (e.g., the user archived
+                        // mid-playback and is now deleting from the
+                        // archive view) — same crash class as the
+                        // active-spool swipe-delete.
+                        if spoolPlayer.queue.contains(where: { $0.id == item.id }) {
+                            spoolPlayer.stop()
+                        }
                         modelContext.delete(item)
                     } label: {
                         Label("Delete", systemImage: "trash")
@@ -1016,6 +1035,14 @@ struct StoryListView: View {
         // safer default since the user can restore from the archive.
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
+                // If the player is mid-playback on this item (or has it
+                // in its queue snapshot), stop first so it drops its
+                // strong reference to the @Model instance before we
+                // delete it — touching properties of a deleted SwiftData
+                // object throws/crashes.
+                if spoolPlayer.queue.contains(where: { $0.id == item.id }) {
+                    spoolPlayer.stop()
+                }
                 modelContext.delete(item)
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -1324,7 +1351,7 @@ struct StoryListView: View {
             .tint(.purple)
 
             if let url = story.url.flatMap(URL.init(string:)) {
-                ShareLink(item: url, preview: SharePreview(story.title ?? "Hacker News story")) {
+                ShareLink(item: url, preview: SharePreview(story.title ?? "Spool story")) {
                     Label("Share", systemImage: "square.and.arrow.up")
                 }
                 .tint(.blue)

@@ -108,6 +108,13 @@ private final class RenderSession: NSObject, AVSpeechSynthesizerDelegate, @unche
     private var timestamps: [AudioTimestamp] = []
     private var continuation: CheckedContinuation<AudioRenderResult, Error>?
     private var didComplete = false
+    /// Lock around `didComplete` and continuation resumption. The synth
+    /// fires `handle(buffer:)` on its private queue, the watchdog fires
+    /// on a global utility queue, and `deinit` can fire on any actor —
+    /// without the lock, a plain `Bool` guard lets two paths both pass
+    /// the `!didComplete` check and both resume the continuation, which
+    /// is a fatal runtime error for CheckedContinuation.
+    private let stateLock = NSLock()
     /// Watchdog timer. If the synth never produces an end-of-stream
     /// buffer (rare but possible on some voices when the process is
     /// backgrounded mid-write), the continuation would otherwise hang
@@ -153,9 +160,14 @@ private final class RenderSession: NSObject, AVSpeechSynthesizerDelegate, @unche
         // (process backgrounded, owner deallocated), surface the
         // cancellation so the awaiting Task doesn't hang forever.
         watchdog?.cancel()
-        if !didComplete, let cont = continuation {
-            cont.resume(throwing: AudioRenderError.cancelled)
+        stateLock.lock()
+        let cont = didComplete ? nil : continuation
+        if !didComplete {
+            didComplete = true
+            continuation = nil
         }
+        stateLock.unlock()
+        cont?.resume(throwing: AudioRenderError.cancelled)
     }
 
     private func startWatchdog(seconds: TimeInterval) {
@@ -214,13 +226,20 @@ private final class RenderSession: NSObject, AVSpeechSynthesizerDelegate, @unche
     }
 
     private func finish() {
-        guard !didComplete else { return }
+        stateLock.lock()
+        guard !didComplete else {
+            stateLock.unlock()
+            return
+        }
         didComplete = true
+        let cont = continuation
+        continuation = nil
+        stateLock.unlock()
+
         watchdog?.cancel()
         watchdog = nil
         guard sampleRate > 0, totalFrames > 0 else {
-            continuation?.resume(throwing: AudioRenderError.noAudioProduced)
-            continuation = nil
+            cont?.resume(throwing: AudioRenderError.noAudioProduced)
             return
         }
         // Close the file before we hand the URL back.
@@ -232,18 +251,24 @@ private final class RenderSession: NSObject, AVSpeechSynthesizerDelegate, @unche
             timestamps: timestamps
         )
         audioRendererLog.debug("Rendered \(self.text.count, privacy: .public)ch → \(duration, privacy: .public)s (\(self.timestamps.count, privacy: .public) timestamps)")
-        continuation?.resume(returning: result)
-        continuation = nil
+        cont?.resume(returning: result)
     }
 
     private func fail(_ error: AudioRenderError) {
-        guard !didComplete else { return }
+        stateLock.lock()
+        guard !didComplete else {
+            stateLock.unlock()
+            return
+        }
         didComplete = true
+        let cont = continuation
+        continuation = nil
+        stateLock.unlock()
+
         watchdog?.cancel()
         watchdog = nil
         audioFile = nil
-        continuation?.resume(throwing: error)
-        continuation = nil
+        cont?.resume(throwing: error)
     }
 
     // MARK: - AVSpeechSynthesizerDelegate

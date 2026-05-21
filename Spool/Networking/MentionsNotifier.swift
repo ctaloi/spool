@@ -145,11 +145,18 @@ enum MentionsNotifier {
     ///
     /// Honors the user's `mentionNotificationsEnabled` toggle: if
     /// they've turned mentions off in Settings, we don't submit a
-    /// request and any previously-scheduled one is cancelled.
+    /// request and any previously-scheduled one is cancelled. Also
+    /// skips scheduling for signed-out users — without a username
+    /// the BG task immediately returns `.noUsername`, so scheduling
+    /// only burns iOS's per-app BG runtime budget.
     static func scheduleNextRefresh() {
-        guard UserDefaults.standard.object(forKey: SettingsKeys.mentionNotificationsEnabled) == nil
-                || UserDefaults.standard.bool(forKey: SettingsKeys.mentionNotificationsEnabled)
-        else {
+        let enabled = UserDefaults.standard.object(forKey: SettingsKeys.mentionNotificationsEnabled) == nil
+                       || UserDefaults.standard.bool(forKey: SettingsKeys.mentionNotificationsEnabled)
+        guard enabled else {
+            cancelScheduledRefresh()
+            return
+        }
+        guard let user = UserDefaults.standard.string(forKey: "hn.user"), !user.isEmpty else {
             cancelScheduledRefresh()
             return
         }

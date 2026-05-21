@@ -43,7 +43,7 @@ enum SavedStoryIndexer {
     private static func makeItem(_ story: SavedStory) -> CSSearchableItem {
         let attrs = CSSearchableItemAttributeSet(contentType: UTType.text)
         attrs.title = story.title
-        attrs.contentDescription = story.urlString ?? "Hacker News story"
+        attrs.contentDescription = story.urlString ?? "Spool story"
         if let author = story.author, !author.isEmpty {
             attrs.contentCreationDate = story.savedAt
             attrs.contentSources = [author]

@@ -97,7 +97,16 @@ actor AudioCache {
     /// before starting; the slot is released via `releaseRenderSlot()`
     /// (paired in a defer at the call site).
     private var renderSlotBusy: Bool = false
-    private var renderSlotWaiters: [CheckedContinuation<Void, Never>] = []
+    /// Each waiter carries a UUID so a cancellation handler can find
+    /// and remove its own entry from the queue without scanning by
+    /// continuation identity (which CheckedContinuation doesn't
+    /// expose). Without this, a cancelled task leaks its
+    /// continuation, blocking every later waiter indefinitely.
+    private struct RenderWaiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, Never>
+    }
+    private var renderSlotWaiters: [RenderWaiter] = []
 
     init(maxBytes: Int64 = 200 * 1024 * 1024) {
         // 200 MB cap by default. A 5-minute summary renders to ~3 MB
@@ -217,15 +226,36 @@ actor AudioCache {
     /// matching `releaseRenderSlot()` (typically via a `defer`).
     /// Prevents two audio renders from competing for synth resources
     /// at the same time.
+    ///
+    /// Cancellation-safe: a Task cancelled while parked here resumes
+    /// promptly (its `defer { releaseRenderSlot() }` then runs and
+    /// hands the slot to the next waiter). Without this, a cancelled
+    /// prefetch leaks its continuation and blocks every later render.
     func waitForRenderSlot() async {
+        if Task.isCancelled { return }
         if !renderSlotBusy {
             renderSlotBusy = true
             return
         }
-        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            renderSlotWaiters.append(cont)
+        let id = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                renderSlotWaiters.append(RenderWaiter(id: id, continuation: cont))
+            }
+        } onCancel: {
+            Task { await self.removeRenderWaiter(id: id) }
         }
         renderSlotBusy = true
+    }
+
+    /// Called from the task-cancellation handler. Pops the waiter
+    /// with `id` and resumes it (no-op return) so the parked function
+    /// unsticks and its caller's `defer` releases the slot.
+    private func removeRenderWaiter(id: UUID) {
+        if let idx = renderSlotWaiters.firstIndex(where: { $0.id == id }) {
+            let entry = renderSlotWaiters.remove(at: idx)
+            entry.continuation.resume()
+        }
     }
 
     func releaseRenderSlot() {
@@ -235,7 +265,7 @@ actor AudioCache {
         }
         let next = renderSlotWaiters.removeFirst()
         // Stay busy across handoff so a third caller doesn't race in.
-        next.resume()
+        next.continuation.resume()
     }
 
     /// Removes a single entry (both audio and metadata).

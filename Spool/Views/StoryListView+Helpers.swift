@@ -61,7 +61,7 @@ struct StoryListConditionalSearchable: ViewModifier {
                 .searchable(
                     text: $text,
                     placement: .navigationBarDrawer(displayMode: .automatic),
-                    prompt: "Search Hacker News"
+                    prompt: "Search HN"
                 )
                 .searchSuggestions {
                     if text.isEmpty {

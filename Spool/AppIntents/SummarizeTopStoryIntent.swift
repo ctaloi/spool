@@ -1,14 +1,14 @@
 import AppIntents
 import Foundation
 
-/// Fetches the current top Hacker News story, pulls the article body, and
-/// runs the on-device Apple Intelligence summarizer. Surfaced as a Siri
-/// Shortcut + Spotlight entry so you can ask the phone "summarize the top
-/// Spool story" without opening the app.
+/// Fetches the current top HN story, pulls the article body, and runs
+/// the on-device Apple Intelligence summarizer. Surfaced as a Siri
+/// Shortcut + Spotlight entry so you can ask the phone "summarize the
+/// top Spool story" without opening the app.
 struct SummarizeTopStoryIntent: AppIntent {
-    static let title: LocalizedStringResource = "Summarize Top HN Story"
+    static let title: LocalizedStringResource = "Summarize Top Spool Story"
     static let description = IntentDescription(
-        "Fetches the current top Hacker News story and generates an on-device AI summary."
+        "Fetches the current top story and generates an on-device AI summary."
     )
     static let openAppWhenRun: Bool = false
 

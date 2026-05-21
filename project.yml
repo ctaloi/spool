@@ -66,7 +66,9 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         UIBackgroundModes:
+          - audio
           - fetch
+          - processing
         BGTaskSchedulerPermittedIdentifiers:
           - news.getspool.app.refresh-mentions
         CFBundleURLTypes:

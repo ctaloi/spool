@@ -86,8 +86,8 @@ struct TopStoriesWidget: Widget {
             TopStoriesWidgetView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
-        .configurationDisplayName("Hacker News")
-        .description("Top stories from Hacker News — choose your feed.")
+        .configurationDisplayName("Spool")
+        .description("Top stories from your chosen HN feed.")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,

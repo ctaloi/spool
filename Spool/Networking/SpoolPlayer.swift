@@ -494,7 +494,7 @@ final class SpoolPlayer: NSObject, ObservableObject {
         }
         var info: [String: Any] = [:]
         info[MPMediaItemPropertyTitle] = item.title
-        info[MPMediaItemPropertyArtist] = item.author ?? "Hacker News"
+        info[MPMediaItemPropertyArtist] = item.author ?? "Spool"
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
         info[MPNowPlayingInfoPropertyPlaybackRate] = state == .playing ? 1.0 : 0.0
         if currentDuration > 0 {
