@@ -30,6 +30,12 @@ struct LaunchView: View {
                             .opacity(index < visibleBars ? 1 : 0)
                     }
                 }
+
+                Text("Spool")
+                    .font(.system(size: 40, weight: .heavy, design: .default))
+                    .tracking(-0.5)
+                    .foregroundStyle(Color(.label))
+                    .opacity(wordmarkVisible ? 1 : 0)
             }
         }
         .task {

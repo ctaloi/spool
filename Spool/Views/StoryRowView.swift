@@ -118,18 +118,9 @@ struct StoryRowView: View {
             in: .rect(cornerRadius: Theme.CornerRadius.medium, style: .continuous)
         )
         .contentShape(Rectangle())
-        // iPad / Mac Catalyst: lift on hover instead of highlight —
-        // .highlight draws a tint-colored (HN orange) border that
-        // persists post-tap and clashes hard with the soft selection
-        // tint we draw inside the row. .lift is a soft scale + shadow,
-        // closer to Apple Mail's iPad row treatment.
-        .hoverEffect(.lift)
-        // Suppress the system focus ring on iPad — when you click a
-        // row with a pointer or focus it via keyboard, iOS 26 draws
-        // a tint-colored (HN orange) rectangle around it. We already
-        // signal "selected" via the internal accent-tint card, so the
-        // system ring is redundant and visually harsh.
-        .focusEffectDisabled()
+        // iPad / Mac Catalyst: subtle highlight when hovered.
+        // No effect on iPhone.
+        .hoverEffect(.highlight)
         // Collapse the row into a single VoiceOver element — without
         // this, swiping through a feed reads "title" → "host" →
         // "score" → "comments" → "author" → "time" as six separate

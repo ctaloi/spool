@@ -482,17 +482,11 @@ struct StoryListView: View {
     /// their error / loading variants.
     @ViewBuilder
     private var content: some View {
-        // No `selection:` binding here — iOS 26 draws a hard accent-
-        // colored outline around the selected row in iPad
-        // NavigationSplitView that `.listRowBackground`,
-        // `.focusEffectDisabled`, and hover modifiers can't suppress.
-        // Each row wraps its content in a Button that updates
-        // `selectedStory` directly; the binding still drives the
-        // detail pane on both iPhone and iPad.
-        List {
+        List(selection: $selectedStory) {
             if isSearching && feedSource.supportsSearch {
                 searchRows
             } else {
+                feedSubtitleRow
                 switch feedSource {
                 case .category: feedRows
                 case .trending: trendingRows
@@ -522,6 +516,25 @@ struct StoryListView: View {
             } label: { EmptyView() }
             .keyboardShortcut("r", modifiers: .command)
             .opacity(0)
+        }
+    }
+
+    /// Editorial one-liner above the feed — gives each source a touch
+    /// of identity without changing the layout. Hidden in search mode
+    /// (the search bar provides its own context) and on sources where
+    /// `FeedDescriptions` returns nil.
+    @ViewBuilder
+    private var feedSubtitleRow: some View {
+        if let subtitle = FeedDescriptions.subtitle(for: feedSource) {
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+                .padding(.bottom, 10)
+                .listRowBackground(Color(.systemBackground))
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -686,9 +699,9 @@ struct StoryListView: View {
         if savedStories.isEmpty {
             statusRow {
                 ContentUnavailableView(
-                    "No Saved Stories",
+                    "No saved stories yet",
                     systemImage: "bookmark",
-                    description: Text("Swipe a story in the feed and tap Save.")
+                    description: Text("Bookmark anything worth coming back to.")
                 )
             }
         } else {
@@ -745,7 +758,7 @@ struct StoryListView: View {
                 ContentUnavailableView(
                     "Your spool is empty",
                     systemImage: "headphones",
-                    description: Text("Tap the headphones icon on any story to add it. Play your spool back like a playlist.")
+                    description: Text("Add stories throughout the day and listen later.")
                 )
             }
         } else {
@@ -894,9 +907,9 @@ struct StoryListView: View {
         if archive.isEmpty {
             statusRow {
                 ContentUnavailableView {
-                    Label("Archive is empty", systemImage: "archivebox")
+                    Label("Nothing archived yet", systemImage: "archivebox")
                 } description: {
-                    Text("Stories you finish listening to land here. Swipe to restore them or delete forever.")
+                    Text("Stories you've listened to will land here.")
                 } actions: {
                     // ContentUnavailableView's action area gives buttons
                     // its own rendering; pairing it with `.buttonStyle(.glass)`
@@ -914,18 +927,14 @@ struct StoryListView: View {
             }
         } else {
             ForEach(archive, id: \.id) { item in
-                Button {
-                    selectedStory = item.asHNItem
-                } label: {
-                    StoryRowView(
-                        story: item.asHNItem,
-                        context: item.archivedAt.map { "Archived \($0.formatted(.relative(presentation: .named)))" } ?? "Archived",
-                        isRead: readIDs.contains(item.id),
-                        isSaved: savedIDs.contains(item.id),
-                        isSelected: selectedStory?.id == item.id
-                    )
-                }
-                .buttonStyle(.plain)
+                StoryRowView(
+                    story: item.asHNItem,
+                    context: item.archivedAt.map { "Archived \($0.formatted(.relative(presentation: .named)))" } ?? "Archived",
+                    isRead: readIDs.contains(item.id),
+                    isSaved: savedIDs.contains(item.id),
+                    isSelected: selectedStory?.id == item.id
+                )
+                .tag(item.asHNItem)
                 .listRowBackground(rowBackground(for: item.asHNItem))
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
@@ -1284,24 +1293,17 @@ struct StoryListView: View {
 
     @ViewBuilder
     private func storyRow(story: HNItem, context: String? = nil) -> some View {
-        // Button wrapper drives selection directly so we can drop
-        // `List(selection:)` and the iPad outline that comes with it.
-        // `.buttonStyle(.plain)` keeps the row's appearance intact.
-        Button {
-            selectedStory = story
-        } label: {
-            StoryRowView(
-                story: story,
-                context: context,
-                isRead: readIDs.contains(story.id),
-                isSaved: savedIDs.contains(story.id),
-                isSpooled: spooledIDs.contains(story.id),
-                isSelected: selectedStory?.id == story.id,
-                suppressTypeBadge: dedicatedKindFeed,
-                hideRawScore: feedSource == .trending
-            )
-        }
-        .buttonStyle(.plain)
+        StoryRowView(
+            story: story,
+            context: context,
+            isRead: readIDs.contains(story.id),
+            isSaved: savedIDs.contains(story.id),
+            isSpooled: spooledIDs.contains(story.id),
+            isSelected: selectedStory?.id == story.id,
+            suppressTypeBadge: dedicatedKindFeed,
+            hideRawScore: feedSource == .trending
+        )
+        .tag(story)
         .listRowBackground(rowBackground(for: story))
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button {
