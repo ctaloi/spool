@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22154" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22131"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Launch Screen-->
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Spl-Log-Cnt">
+                                <rect key="frame" x="124" y="390" width="144" height="72"/>
+                                <subviews>
+                                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Bar-001-Acc">
+                                        <rect key="frame" x="0.0" y="0.0" width="144" height="18"/>
+                                        <color key="backgroundColor" red="1.0" green="0.4" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="18" id="Bar-001-H"/>
+                                            <constraint firstAttribute="width" constant="144" id="Bar-001-W"/>
+                                        </constraints>
+                                    </view>
+                                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Bar-002-Mid">
+                                        <rect key="frame" x="0.0" y="27" width="108" height="18"/>
+                                        <color key="backgroundColor" red="1.0" green="1.0" blue="1.0" alpha="0.55" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="18" id="Bar-002-H"/>
+                                            <constraint firstAttribute="width" constant="108" id="Bar-002-W"/>
+                                        </constraints>
+                                    </view>
+                                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Bar-003-Low">
+                                        <rect key="frame" x="0.0" y="54" width="72" height="18"/>
+                                        <color key="backgroundColor" red="1.0" green="1.0" blue="1.0" alpha="0.28" colorSpace="custom" customColorSpace="sRGB"/>
+                                        <constraints>
+                                            <constraint firstAttribute="height" constant="18" id="Bar-003-H"/>
+                                            <constraint firstAttribute="width" constant="72" id="Bar-003-W"/>
+                                        </constraints>
+                                    </view>
+                                </subviews>
+                                <constraints>
+                                    <!-- Container is 144 wide (first bar's width) by 72 tall (3 * 18 + 2 * 9 spacing) -->
+                                    <constraint firstAttribute="width" constant="144" id="Cnt-W"/>
+                                    <constraint firstAttribute="height" constant="72" id="Cnt-H"/>
+                                    <!-- Top-align first bar; offsets for the rest = N * (18 + 9) -->
+                                    <constraint firstItem="Bar-001-Acc" firstAttribute="top" secondItem="Spl-Log-Cnt" secondAttribute="top" id="Bar-001-T"/>
+                                    <constraint firstItem="Bar-001-Acc" firstAttribute="leading" secondItem="Spl-Log-Cnt" secondAttribute="leading" id="Bar-001-L"/>
+                                    <constraint firstItem="Bar-002-Mid" firstAttribute="top" secondItem="Spl-Log-Cnt" secondAttribute="top" constant="27" id="Bar-002-T"/>
+                                    <constraint firstItem="Bar-002-Mid" firstAttribute="leading" secondItem="Spl-Log-Cnt" secondAttribute="leading" id="Bar-002-L"/>
+                                    <constraint firstItem="Bar-003-Low" firstAttribute="top" secondItem="Spl-Log-Cnt" secondAttribute="top" constant="54" id="Bar-003-T"/>
+                                    <constraint firstItem="Bar-003-Low" firstAttribute="leading" secondItem="Spl-Log-Cnt" secondAttribute="leading" id="Bar-003-L"/>
+                                </constraints>
+                            </view>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                        <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <!-- Center the logo cluster in the screen -->
+                            <constraint firstItem="Spl-Log-Cnt" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="Ctr-X"/>
+                            <constraint firstItem="Spl-Log-Cnt" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="Ctr-Y"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+</document>

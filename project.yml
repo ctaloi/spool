@@ -54,8 +54,7 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
           UISceneConfigurations: {}
-        UILaunchScreen:
-          UIColorName: systemBackground
+        UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations~iphone:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
