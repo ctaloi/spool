@@ -10,9 +10,13 @@ struct SpoolApp: App {
     /// scene root so the mini player overlay and the playlist
     /// screen share the same controller instance.
     @StateObject private var spoolPlayer = SpoolPlayer()
-    /// `true` for the first ~1.2s of process lifetime, then false for
-    /// the rest of the session. Drives the branded splash overlay.
+    /// `true` for the first ~1.5s after the scene becomes active, then
+    /// false for the rest of the session. Drives the branded splash
+    /// overlay. The timer is gated on scenePhase so iOS pre-warm
+    /// doesn't run it invisibly before the user sees the screen.
     @State private var showLaunch: Bool = true
+    /// Once-only guard for the splash dismissal timer.
+    @State private var launchDismissScheduled: Bool = false
     /// Observed so we can reschedule the Mentions background refresh
     /// every time the app moves to background. iOS only honors the
     /// most recently submitted request per identifier.
@@ -120,17 +124,6 @@ struct SpoolApp: App {
                     router.pendingSheet = sheet.lowercased()
                 }
                 #endif
-                // ~1.3s total — enough time for the three bars to
-                // stagger in, the wordmark to settle, AND give the main
-                // view a few extra frames to finish its first layout
-                // pass underneath. Dismissing too early lets the
-                // crossfade race the list's first-render work, which
-                // shows up as a dropped frame near the very end of the
-                // splash animation.
-                try? await Task.sleep(for: .milliseconds(1_300))
-                withAnimation(.easeInOut(duration: Theme.AnimationDuration.splash)) {
-                    showLaunch = false
-                }
             }
         }
         .modelContainer(for: [
@@ -159,6 +152,22 @@ struct SpoolApp: App {
             // transition so the freshest interval is always pending.
             if phase == .background {
                 MentionsNotifier.scheduleNextRefresh()
+            }
+            // Splash dismissal — only kicks off once the scene is
+            // actually active (= visible to the user). iOS pre-warm can
+            // run .task on the WindowGroup before the screen ever lights
+            // up, and starting the dismissal timer there meant the
+            // launch overlay had already faded out by the time the user
+            // saw anything. 1.5s gives the bars time to stagger in,
+            // hold for ~600ms, then crossfade.
+            if phase == .active, !launchDismissScheduled, showLaunch {
+                launchDismissScheduled = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(1_500))
+                    withAnimation(.easeInOut(duration: Theme.AnimationDuration.splash)) {
+                        showLaunch = false
+                    }
+                }
             }
         }
     }
