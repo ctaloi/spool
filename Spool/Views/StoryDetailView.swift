@@ -626,7 +626,11 @@ struct StoryDetailView: View {
 
     private func toggleSaved() {
         let story = viewModel.story
-        if let existing = savedStories.first(where: { $0.id == story.id }) {
+        let storyID = story.id
+        let descriptor = FetchDescriptor<SavedStory>(
+            predicate: #Predicate { $0.id == storyID }
+        )
+        if let existing = try? modelContext.fetch(descriptor).first {
             modelContext.delete(existing)
             SavedStoryIndexer.deindex(story.id)
         } else {
@@ -646,10 +650,20 @@ struct StoryDetailView: View {
 
     private func toggleSpool() {
         let story = viewModel.story
-        if let existing = spool.first(where: { $0.id == story.id }) {
+        let storyID = story.id
+        let existingDescriptor = FetchDescriptor<SpooledStory>(
+            predicate: #Predicate { $0.id == storyID }
+        )
+        if let existing = try? modelContext.fetch(existingDescriptor).first {
             modelContext.delete(existing)
         } else {
-            let nextPosition = (spool.map(\.position).max() ?? -1) + 1
+            // Fresh max-position fetch — @Query snapshot can lag the
+            // context after rapid taps, leading to position collisions.
+            var maxDescriptor = FetchDescriptor<SpooledStory>(
+                sortBy: [SortDescriptor(\.position, order: .reverse)]
+            )
+            maxDescriptor.fetchLimit = 1
+            let maxPosition = (try? modelContext.fetch(maxDescriptor).first?.position) ?? -1
             let queued = SpooledStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
@@ -657,7 +671,7 @@ struct StoryDetailView: View {
                 author: story.by,
                 score: story.score,
                 descendants: story.descendants,
-                position: nextPosition
+                position: maxPosition + 1
             )
             modelContext.insert(queued)
             // Pre-generate the article + thread summaries so the
