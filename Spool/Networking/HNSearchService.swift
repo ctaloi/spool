@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let algoliaLog = Logger(subsystem: "news.getspool.app", category: "Algolia")
 
 /// Sort direction for Algolia queries. Maps to the two Algolia endpoints
 /// — `/search` (by relevance, which for HN means by points) and
@@ -106,10 +109,13 @@ actor HNSearchService {
         hitsPerPage: Int = 30
     ) async throws -> HNSearchPage {
         let url = urlComponents(for: kind, page: page, hitsPerPage: hitsPerPage).url!
-        let (data, _) = try await session.data(from: url)
+        algoliaLog.debug("→ \(url.absoluteString, privacy: .public)")
+        let (data, response) = try await session.data(from: url)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let payload = try decoder.decode(AlgoliaResponse.self, from: data)
         let stories = payload.hits.compactMap(\.asHNItem)
         let filtered = Self.postFilter(stories, kind: kind)
+        algoliaLog.debug("← status=\(status, privacy: .public) nbHits=\(payload.nbHits, privacy: .public) hits=\(payload.hits.count, privacy: .public) decoded=\(stories.count, privacy: .public) filtered=\(filtered.count, privacy: .public)")
         return HNSearchPage(
             stories: filtered,
             page: payload.page,

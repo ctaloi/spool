@@ -369,9 +369,19 @@ struct StoryListView: View {
             .refreshable {
                 await refreshCurrentSource()
             }
-            .task(id: feedSource) {
-                await loadCurrentSource()
-                switchingFeed = false
+            // Was .task(id: feedSource), but the .modifier above
+            // flips its if/else branch when supportsSearch changes
+            // (category ↔ best-of), and that branch flip would
+            // interrupt the .task body's in-flight fetch — best-of
+            // landed empty on the very first visit from a category,
+            // worked fine on every subsequent visit. Routing through
+            // .onChange + an unstructured Task decouples the load
+            // from the modifier chain's lifecycle.
+            .onChange(of: feedSource, initial: true) { _, _ in
+                Task {
+                    await loadCurrentSource()
+                    switchingFeed = false
+                }
             }
             .task {
                 SavedStoryIndexer.syncAll(savedStories)
