@@ -287,6 +287,14 @@ struct StoryListView: View {
             // Force a reload — the user may be returning to the same
             // window after viewing another source.
             await browse.refresh()
+            // First-hit-after-switch occasionally returns an empty
+            // response from Algolia even though the same URL works on
+            // pull-to-refresh a moment later. If we landed empty
+            // without an error, simulate the user's pull and try once
+            // more — harmless when the window is legitimately empty.
+            if browse.results.isEmpty, browse.errorMessage == nil {
+                await browse.refresh()
+            }
         case .saved, .spool, .archive:
             // SwiftData @Query keeps these live; nothing to fetch.
             break
