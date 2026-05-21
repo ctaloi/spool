@@ -142,11 +142,7 @@ SpoolShareExtension/          system share-sheet target
 tools/
   make_icon.swift             Core Graphics AppIcon generator
   make_screenshots.swift      App Store marketing screenshot renderer
-  make_web_screenshots.swift  Landing-page screenshot sizer
-landing/                      Marketing site for getspool.news
-  index.html                  Home page (hero + features + screenshots)
-  privacy/                    Privacy policy page (getspool.news/privacy/)
-  screenshots/                Source captures + sized _web/ variants
+  make_web_screenshots.swift  Web screenshot sizer (writes to ../spool-website/)
 appstore/                     App Store Connect submission package
   metadata.md                 Copy-paste cheat sheet for ASC fields
   review-notes.md             App Review notes + likely pushbacks
@@ -154,30 +150,27 @@ appstore/                     App Store Connect submission package
   screenshots/                iPhone screenshots, 6.9" and 6.5" slots
 ```
 
-## Website (`landing/`)
+## Website
 
-The marketing site lives in `landing/` and is deployed to
-[getspool.news](https://getspool.news) via Cloudflare Pages. Pushing
-to `main` auto-deploys.
-
-- **`landing/index.html`** — single-file home page with hero,
-  features, and screenshot frames. Pure HTML + CSS, no JS, no
-  build step. Edit and push.
-- **`landing/privacy/index.html`** — privacy policy. Linked from
-  the App Store listing and the in-app About sheet.
-- **`landing/screenshots/`** — raw device captures, organized by
-  feature. The `_web/` subfolder holds the smaller, status-bar-
-  cropped versions that the page actually serves.
-
-To refresh screenshots after a UI change:
+The marketing site at [getspool.news](https://getspool.news) lives in
+a separate repo: **[ctaloi/spool-website](https://github.com/ctaloi/spool-website)**.
+Clone it next to this repo so the web-screenshot tool can write to it:
 
 ```sh
-# Drop new device captures into appstore/screenshots/iphone-6.9/
-swift tools/make_web_screenshots.swift   # generates landing/screenshots/_web/*
+cd ~/src
+git clone git@github.com:ctaloi/spool-website.git
 ```
 
-That script crops the iOS status bar, resizes to the dimensions the
-landing page expects, and writes both `-light` and `-dark` filenames.
+To refresh the page screenshots after a UI change in this repo:
+
+```sh
+# 1. Drop new captures into appstore/screenshots/iphone-6.9/
+# 2. Regenerate the web-sized variants — writes to ../spool-website/screenshots/_web/
+swift tools/make_web_screenshots.swift
+
+# 3. Commit + push the website repo to redeploy.
+cd ../spool-website && git add screenshots/_web/ && git commit -m "Refresh screenshots" && git push
+```
 
 ## Privacy
 

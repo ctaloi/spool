@@ -3,16 +3,21 @@ import ImageIO
 import UniformTypeIdentifiers
 import Foundation
 
-// Generates the landing/screenshots/_web/*.png files from the App Store
-// source screenshots. Crops the iOS status bar off the top (138px) and
-// downscales to the size the landing page's `.device-screenshot` CSS
-// bezel expects. Run from project root:
+// Generates the spool-website screenshots/_web/*.png files from the
+// App Store source captures. Crops the iOS status bar off the top
+// (138px) and downscales to the size the landing page's
+// `.device-screenshot` CSS bezel expects. Writes into the sibling
+// `spool-website` repo at ../spool-website/screenshots/_web/.
+//
+// Run from project root:
 //
 //   swift tools/make_web_screenshots.swift
+//
+// Then commit + push the spool-website repo to redeploy.
 
 struct WebSlot {
     let source: String       // file in appstore/screenshots/iphone-6.9/
-    let outputs: [String]    // file names in landing/screenshots/_web/
+    let outputs: [String]    // file names in spool-website/screenshots/_web/
     let width: CGFloat       // output width
 }
 
@@ -26,7 +31,12 @@ let slots: [WebSlot] = [
 
 let statusBarCropPx: CGFloat = 138
 let inputDir  = URL(fileURLWithPath: "appstore/screenshots/iphone-6.9")
-let outputDir = URL(fileURLWithPath: "landing/screenshots/_web")
+let outputDir = URL(fileURLWithPath: "../spool-website/screenshots/_web")
+
+guard FileManager.default.fileExists(atPath: outputDir.deletingLastPathComponent().deletingLastPathComponent().path) else {
+    fputs("error: sibling repo ../spool-website not found. Clone github.com/ctaloi/spool-website next to this repo.\n", stderr)
+    exit(1)
+}
 try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
 
 for slot in slots {
