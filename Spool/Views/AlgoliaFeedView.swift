@@ -153,7 +153,14 @@ struct AlgoliaFeedView: View {
     }
 
     private func toggleSaved(_ story: HNItem) {
-        if let existing = savedStories.first(where: { $0.id == story.id }) {
+        // Fetch fresh against modelContext (not the @Query snapshot)
+        // so a rapid double-tap can't pass the duplicate check and
+        // throw on the unique id constraint.
+        let storyID = story.id
+        let descriptor = FetchDescriptor<SavedStory>(
+            predicate: #Predicate { $0.id == storyID }
+        )
+        if let existing = try? modelContext.fetch(descriptor).first {
             modelContext.delete(existing)
         } else {
             let saved = SavedStory(
@@ -170,17 +177,32 @@ struct AlgoliaFeedView: View {
     }
 
     private func toggleSpool(_ story: HNItem) {
-        if let existing = spool.first(where: { $0.id == story.id }) {
+        let storyID = story.id
+        let existingDescriptor = FetchDescriptor<SpooledStory>(
+            predicate: #Predicate { $0.id == storyID }
+        )
+        if let existing = try? modelContext.fetch(existingDescriptor).first {
             modelContext.delete(existing)
         } else {
-            modelContext.insert(SpooledStory(
+            // Compute position from the live max — without this, every
+            // spool-from-search insert lands at position 0 and they
+            // all collide with each other in the spool ordering.
+            var maxDescriptor = FetchDescriptor<SpooledStory>(
+                sortBy: [SortDescriptor(\.position, order: .reverse)]
+            )
+            maxDescriptor.fetchLimit = 1
+            let maxPosition = (try? modelContext.fetch(maxDescriptor).first?.position) ?? -1
+            let queued = SpooledStory(
                 id: story.id,
                 title: story.title ?? "(untitled)",
                 urlString: story.url,
                 author: story.by,
                 score: story.score,
-                descendants: story.descendants
-            ))
+                descendants: story.descendants,
+                position: maxPosition + 1
+            )
+            modelContext.insert(queued)
+            SummaryPrefetcher.schedulePrefetch(for: queued, in: modelContext)
         }
     }
 }
