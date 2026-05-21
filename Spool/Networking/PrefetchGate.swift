@@ -1,7 +1,7 @@
 import Foundation
 import os.log
 
-private let prefetchGateLog = Logger(subsystem: "com.aloi.Spool", category: "PrefetchGate")
+private let prefetchGateLog = Logger(subsystem: "news.getspool.app", category: "PrefetchGate")
 
 /// Coordinates between foreground user requests (manual Summarize
 /// tap) and background prefetching (audio renders, summary

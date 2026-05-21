@@ -28,6 +28,7 @@ struct SettingsView: View {
                     notificationsSection
                 }
                 librarySection
+                aboutSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -238,5 +239,19 @@ struct SettingsView: View {
         for story in readStories {
             modelContext.delete(story)
         }
+    }
+
+    @ViewBuilder
+    private var aboutSection: some View {
+        Section {
+            LabeledContent("Version", value: Self.versionString)
+        }
+    }
+
+    private static var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info?["CFBundleVersion"] as? String ?? "—"
+        return "\(short) (\(build))"
     }
 }

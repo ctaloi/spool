@@ -3,7 +3,7 @@ import Foundation
 import AVFoundation
 import os.log
 
-private let audioCacheLog = Logger(subsystem: "com.aloi.Spool", category: "AudioCache")
+private let audioCacheLog = Logger(subsystem: "news.getspool.app", category: "AudioCache")
 
 /// Identifies a single rendered TTS take. Includes everything that can
 /// change the audible output so a content change, a voice swap, or a

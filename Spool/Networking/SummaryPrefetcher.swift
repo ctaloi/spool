@@ -375,4 +375,4 @@ enum SummaryPrefetcher {
     }
 }
 
-private let audioPrefetchLog = Logger(subsystem: "com.aloi.Spool", category: "AudioPrefetch")
+private let audioPrefetchLog = Logger(subsystem: "news.getspool.app", category: "AudioPrefetch")

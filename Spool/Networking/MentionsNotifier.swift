@@ -21,7 +21,7 @@ enum MentionsNotifier {
     /// The single identifier registered in
     /// `BGTaskSchedulerPermittedIdentifiers`. Changing this requires
     /// a matching project.yml edit + reinstall.
-    static let taskIdentifier = "com.aloi.Spool.refresh-mentions"
+    static let taskIdentifier = "news.getspool.app.refresh-mentions"
 
     /// Refresh cadence floor. iOS may run us later than this — never
     /// sooner. 30 minutes is the practical lower bound for

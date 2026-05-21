@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 import os.log
 
-private let audioRendererLog = Logger(subsystem: "com.aloi.Spool", category: "AudioRenderer")
+private let audioRendererLog = Logger(subsystem: "news.getspool.app", category: "AudioRenderer")
 
 /// One timed range in the rendered audio. `location`/`length` index
 /// into the input text; `startTime` is the moment that range begins

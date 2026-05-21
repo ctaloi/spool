@@ -7,7 +7,7 @@ import Foundation
 // bars of decreasing length and opacity on a tinted field. Three modes:
 //
 //   light   — HN orange field, white pills (the new default; matches
-//             the showcase landing favicon).
+//             the landing-site favicon).
 //   dark    — near-black field, HN orange pills (iOS dark-appearance
 //             home-screen variant).
 //   tinted  — transparent field, light pills (iOS reads the alpha

@@ -911,7 +911,8 @@ struct StoryListView: View {
                     story: item.asHNItem,
                     context: item.archivedAt.map { "Archived \($0.formatted(.relative(presentation: .named)))" } ?? "Archived",
                     isRead: readIDs.contains(item.id),
-                    isSaved: savedIDs.contains(item.id)
+                    isSaved: savedIDs.contains(item.id),
+                    isSelected: selectedStory?.id == item.id
                 )
                 .tag(item.asHNItem)
                 .listRowBackground(rowBackground(for: item.asHNItem))
@@ -1278,6 +1279,7 @@ struct StoryListView: View {
             isRead: readIDs.contains(story.id),
             isSaved: savedIDs.contains(story.id),
             isSpooled: spooledIDs.contains(story.id),
+            isSelected: selectedStory?.id == story.id,
             suppressTypeBadge: dedicatedKindFeed,
             hideRawScore: feedSource == .trending
         )
@@ -1426,16 +1428,18 @@ struct StoryListView: View {
             .textCase(nil)
     }
 
-    /// Soft tinted background for the row matching the active
-    /// selection. Replaces iOS's default full-saturation tint
-    /// highlight on the content column — at 12% opacity the brand
-    /// orange reads as "active" without dominating the row. Returns
-    /// clear for unselected rows so the natural list background
-    /// shows through.
+    /// Force every row's background to the system background.
+    /// Why: List's `.tag(_:)` + selection binding triggers iOS's
+    /// auto-styling for selected rows on iPad — strong accent tint
+    /// PLUS inverted (white) text color. Even with a soft custom
+    /// tint, the text stays inverted, leaving white-on-pale-orange
+    /// titles you can barely read. By overriding listRowBackground
+    /// to a flat color we disable iOS's selection chrome entirely;
+    /// the actual "this is selected" visual is drawn INSIDE the
+    /// row (`StoryRowView.isSelected`), where we control the text
+    /// color end-to-end.
     private func rowBackground(for story: HNItem) -> Color {
-        selectedStory?.id == story.id
-            ? Theme.accent.opacity(Theme.Opacity.selectionTint)
-            : Color.clear
+        Color(.systemBackground)
     }
 
     /// True when the active feed is already a single-kind category

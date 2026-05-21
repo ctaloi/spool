@@ -6,6 +6,12 @@ struct StoryRowView: View {
     var isRead: Bool = false
     var isSaved: Bool = false
     var isSpooled: Bool = false
+    /// True when this row is the active selection in the iPad
+    /// content column. Selected rows override the read-dimming
+    /// treatment (otherwise the title visibly fades the moment a
+    /// user taps it) and bump the meta line back to primary contrast
+    /// so it reads cleanly against the accent-tinted background.
+    var isSelected: Bool = false
     /// Hide the "ASK" / "SHOW" / "JOB" / "TELL" / "LAUNCH" pill —
     /// pass `true` on dedicated feeds (Ask HN, Show HN, Jobs) where
     /// every row is the same kind and the title already starts with
@@ -49,9 +55,16 @@ struct StoryRowView: View {
                             // which washed them out. The 0.55 opacity
                             // mirrors Apple Mail's read-thread treatment
                             // — clearly muted, still legible.
-                            .foregroundStyle(isRead
-                                              ? AnyShapeStyle(Color.primary.opacity(Theme.Opacity.readPrimary))
-                                              : AnyShapeStyle(.primary))
+                            //
+                            // Using `Color.primary` (literal) instead of
+                            // `.primary` (HierarchicalShapeStyle) on the
+                            // unread/selected branch — iOS 26's selection
+                            // chrome can re-tint hierarchical styles to
+                            // white on the iPad NavigationSplitView, but
+                            // it leaves explicit colors alone.
+                            .foregroundStyle((isRead && !isSelected)
+                                              ? Color.primary.opacity(Theme.Opacity.readPrimary)
+                                              : Color.primary)
                             .lineLimit(3)
                             .fixedSize(horizontal: false, vertical: true)
                         if isSaved {
@@ -75,7 +88,7 @@ struct StoryRowView: View {
                             Text(host)
                                 .font(.footnote)
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isSelected ? Color.primary.opacity(0.7) : Color.secondary)
                         .lineLimit(1)
                     }
                 }
@@ -83,7 +96,7 @@ struct StoryRowView: View {
 
                 if showThumbnails, articleURL != nil {
                     thumbnailView
-                        .opacity(isRead ? 0.75 : 1.0)
+                        .opacity((isRead && !isSelected) ? 0.75 : 1.0)
                 }
             }
 
@@ -91,10 +104,32 @@ struct StoryRowView: View {
                 .padding(.top, 2)
         }
         .padding(.vertical, 8)
+        // Soft accent-tinted card behind the selected row. The card
+        // sits BEHIND the row content (no horizontal padding shift)
+        // so the title doesn't truncate differently on selection.
+        // Drawn here rather than via listRowBackground because the
+        // latter would trigger iOS's automatic selected-row
+        // treatment — inverted text color + hard outline — see
+        // rowBackground(_:) in StoryListView.
+        .background(
+            isSelected
+                ? Theme.accent.opacity(Theme.Opacity.selectionTint)
+                : Color.clear,
+            in: .rect(cornerRadius: Theme.CornerRadius.medium, style: .continuous)
+        )
         .contentShape(Rectangle())
-        // iPad / Mac Catalyst: subtle highlight when hovered.
-        // No effect on iPhone.
-        .hoverEffect(.highlight)
+        // iPad / Mac Catalyst: lift on hover instead of highlight —
+        // .highlight draws a tint-colored (HN orange) border that
+        // persists post-tap and clashes hard with the soft selection
+        // tint we draw inside the row. .lift is a soft scale + shadow,
+        // closer to Apple Mail's iPad row treatment.
+        .hoverEffect(.lift)
+        // Suppress the system focus ring on iPad — when you click a
+        // row with a pointer or focus it via keyboard, iOS 26 draws
+        // a tint-colored (HN orange) rectangle around it. We already
+        // signal "selected" via the internal accent-tint card, so the
+        // system ring is redundant and visually harsh.
+        .focusEffectDisabled()
         // Collapse the row into a single VoiceOver element — without
         // this, swiping through a feed reads "title" → "host" →
         // "score" → "comments" → "author" → "time" as six separate
@@ -265,7 +300,15 @@ struct StoryRowView: View {
             Spacer(minLength: 0)
         }
         .font(.footnote)
-        .foregroundStyle(.secondary)
+        // On a selected row, `.secondary` washes out badly against
+        // the accent-tinted background. Step the metadata up to a
+        // muted-primary so it reads cleanly without competing with
+        // the title for emphasis. Both branches use explicit colors
+        // (not hierarchical styles) so iOS 26's selection chrome
+        // can't re-tint them to white on iPad SplitView.
+        .foregroundStyle(isSelected
+                          ? Color.primary.opacity(0.7)
+                          : Color.secondary)
         .lineLimit(1)
     }
 

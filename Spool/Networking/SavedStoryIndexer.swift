@@ -11,7 +11,7 @@ import UniformTypeIdentifiers
 /// so there's no need to track separate add/remove events. The cost
 /// is bounded: re-indexing 100 items is ~ms.
 enum SavedStoryIndexer {
-    private static let domain = "com.aloi.Spool.savedStories"
+    private static let domain = "news.getspool.app.savedStories"
 
     /// Replace the entire indexed set with the supplied snapshot.
     /// Idempotent — calling repeatedly with the same list is a no-op

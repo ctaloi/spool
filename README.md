@@ -141,8 +141,43 @@ SpoolWidget/                  home-screen widget (configurable via AppIntent)
 SpoolShareExtension/          system share-sheet target
 tools/
   make_icon.swift             Core Graphics AppIcon generator
-landing/showcase/             marketing site (deployed at getspool.news)
+  make_screenshots.swift      App Store marketing screenshot renderer
+  make_web_screenshots.swift  Landing-page screenshot sizer
+landing/                      Marketing site for getspool.news
+  index.html                  Home page (hero + features + screenshots)
+  privacy/                    Privacy policy page (getspool.news/privacy/)
+  screenshots/                Source captures + sized _web/ variants
+appstore/                     App Store Connect submission package
+  metadata.md                 Copy-paste cheat sheet for ASC fields
+  review-notes.md             App Review notes + likely pushbacks
+  upload-walkthrough.md       Archive + upload procedure
+  screenshots/                iPhone screenshots, 6.9" and 6.5" slots
 ```
+
+## Website (`landing/`)
+
+The marketing site lives in `landing/` and is deployed to
+[getspool.news](https://getspool.news) via Cloudflare Pages. Pushing
+to `main` auto-deploys.
+
+- **`landing/index.html`** — single-file home page with hero,
+  features, and screenshot frames. Pure HTML + CSS, no JS, no
+  build step. Edit and push.
+- **`landing/privacy/index.html`** — privacy policy. Linked from
+  the App Store listing and the in-app About sheet.
+- **`landing/screenshots/`** — raw device captures, organized by
+  feature. The `_web/` subfolder holds the smaller, status-bar-
+  cropped versions that the page actually serves.
+
+To refresh screenshots after a UI change:
+
+```sh
+# Drop new device captures into appstore/screenshots/iphone-6.9/
+swift tools/make_web_screenshots.swift   # generates landing/screenshots/_web/*
+```
+
+That script crops the iOS status bar, resizes to the dimensions the
+landing page expects, and writes both `-light` and `-dark` filenames.
 
 ## Privacy
 

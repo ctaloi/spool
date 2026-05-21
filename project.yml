@@ -1,6 +1,6 @@
 name: Spool
 options:
-  bundleIdPrefix: com.aloi
+  bundleIdPrefix: news.getspool
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
@@ -16,9 +16,9 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
-    PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "2"
+    PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app
     # iOS 26 recommended settings — applied via Xcode's
     # "Update to Recommended Settings" prompt and mirrored here so they
     # survive `xcodegen generate`.
@@ -47,6 +47,10 @@ targets:
         CFBundleDisplayName: Spool
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # Spool uses only Apple's standard HTTPS / TLS — no custom
+        # crypto. Declaring this here means App Store Connect never
+        # prompts the export-compliance question on each upload.
+        ITSAppUsesNonExemptEncryption: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
           UISceneConfigurations: {}
@@ -64,9 +68,9 @@ targets:
         UIBackgroundModes:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
-          - com.aloi.Spool.refresh-mentions
+          - news.getspool.app.refresh-mentions
         CFBundleURLTypes:
-          - CFBundleURLName: com.aloi.Spool
+          - CFBundleURLName: news.getspool.app
             CFBundleURLSchemes:
               - spool
     settings:
@@ -85,7 +89,7 @@ targets:
       - path: SpoolShareExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool.ShareExtension
+        PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app.share
         PRODUCT_NAME: SpoolShareExtension
         # App extensions need a NESTED `NSExtension` dictionary in
         # their Info.plist (with NSExtensionPointIdentifier etc.
@@ -109,7 +113,7 @@ targets:
       - path: Spool/Models/HNItem.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.Spool.Widget
+        PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app.widget
         PRODUCT_NAME: SpoolWidget
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: SpoolWidget/Info.plist
@@ -129,7 +133,7 @@ targets:
         # Swift Testing (the modern replacement for XCTest) is built
         # into the iOS 26 SDK; no separate package needed.
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SpoolTests
+        PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app.tests
     # Auto-generate a scheme for the test target. xcodegen wires
     # this into the host app's scheme too via the `test` action's
     # targets list below.
@@ -148,7 +152,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.aloi.SpoolUITests
+        PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app.uitests
         TEST_TARGET_NAME: Spool
     scheme:
       testTargets:
