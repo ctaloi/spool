@@ -174,6 +174,7 @@ To refresh the page screenshots after a UI change in this repo:
 #      03-editable-prompts.png + 03-editable-prompts-dark.png
 #      04-widget.png + 04-widget-dark.png
 #      05-customize.png + 05-customize-dark.png
+#      06-summary.png + 06-summary-dark.png
 #
 #    When a `-dark.png` is missing the tool falls back to the
 #    light copy so the website's <picture> always resolves.

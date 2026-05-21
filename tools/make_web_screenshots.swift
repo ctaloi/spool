@@ -43,6 +43,7 @@ let slots: [WebSlot] = [
     WebSlot(lightSource: "03-editable-prompts.png", outputStem: "summarize", width: 560),
     WebSlot(lightSource: "04-widget.png",           outputStem: "widget",    width: 560),
     WebSlot(lightSource: "05-customize.png",        outputStem: "settings",  width: 560),
+    WebSlot(lightSource: "06-summary.png",          outputStem: "summary",   width: 560),
 ]
 
 let statusBarCropPx: CGFloat = 138
