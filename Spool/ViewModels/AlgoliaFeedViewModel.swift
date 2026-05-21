@@ -20,8 +20,22 @@ final class AlgoliaFeedViewModel: ObservableObject {
 
     /// The active feed kind. For search, `update(query:)` mutates it
     /// indirectly via the published query string; for domain / best-of
-    /// the destination view sets it once on `.task`.
-    var kind: AlgoliaFeedKind
+    /// the destination view sets it once on `.task`. Setting it to a
+    /// new value clears the prior fetch state synchronously — without
+    /// this the view briefly shows the previous window's results, then
+    /// either flickers to "Nothing here" if the new fetch is empty or
+    /// stays stuck on a stale "Loading…" if the prior in-flight fetch
+    /// gets cancelled before its catch path can reset state.
+    @Published var kind: AlgoliaFeedKind {
+        didSet {
+            guard oldValue != kind else { return }
+            results = []
+            errorMessage = nil
+            hasMore = false
+            currentPage = 0
+            totalHits = 0
+        }
+    }
     private(set) var query: String = ""
     private var currentPage: Int = 0
     /// Whether the most recent page reported more pages available.
