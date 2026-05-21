@@ -10,13 +10,6 @@ struct SpoolApp: App {
     /// scene root so the mini player overlay and the playlist
     /// screen share the same controller instance.
     @StateObject private var spoolPlayer = SpoolPlayer()
-    /// `true` for the first ~1.5s after the scene becomes active, then
-    /// false for the rest of the session. Drives the branded splash
-    /// overlay. The timer is gated on scenePhase so iOS pre-warm
-    /// doesn't run it invisibly before the user sees the screen.
-    @State private var showLaunch: Bool = true
-    /// Once-only guard for the splash dismissal timer.
-    @State private var launchDismissScheduled: Bool = false
     /// Observed so we can reschedule the Mentions background refresh
     /// every time the app moves to background. iOS only honors the
     /// most recently submitted request per identifier.
@@ -70,27 +63,19 @@ struct SpoolApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                StoryListView()
-                    .environmentObject(auth)
-                    .environmentObject(router)
-                    .environmentObject(spoolPlayer)
-                    .tint(Theme.accent)
-                    // Mini player overlay — sits as a safe-area inset
-                    // at the bottom across every screen, the same
-                    // placement Music / Podcasts use.
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        SpoolMiniPlayer()
-                            .environmentObject(spoolPlayer)
-                    }
-                    .animation(.easeInOut(duration: Theme.AnimationDuration.fast), value: spoolPlayer.isActive)
-
-                if showLaunch {
-                    LaunchView()
-                        .transition(.opacity)
-                        .zIndex(1)
+            StoryListView()
+                .environmentObject(auth)
+                .environmentObject(router)
+                .environmentObject(spoolPlayer)
+                .tint(Theme.accent)
+                // Mini player overlay — sits as a safe-area inset
+                // at the bottom across every screen, the same
+                // placement Music / Podcasts use.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    SpoolMiniPlayer()
+                        .environmentObject(spoolPlayer)
                 }
-            }
+                .animation(.easeInOut(duration: Theme.AnimationDuration.fast), value: spoolPlayer.isActive)
             .onOpenURL { url in
                 router.handle(url)
             }
@@ -152,22 +137,6 @@ struct SpoolApp: App {
             // transition so the freshest interval is always pending.
             if phase == .background {
                 MentionsNotifier.scheduleNextRefresh()
-            }
-            // Splash dismissal — only kicks off once the scene is
-            // actually active (= visible to the user). iOS pre-warm can
-            // run .task on the WindowGroup before the screen ever lights
-            // up, and starting the dismissal timer there meant the
-            // launch overlay had already faded out by the time the user
-            // saw anything. 1.5s gives the bars time to stagger in,
-            // hold for ~600ms, then crossfade.
-            if phase == .active, !launchDismissScheduled, showLaunch {
-                launchDismissScheduled = true
-                Task {
-                    try? await Task.sleep(for: .milliseconds(1_500))
-                    withAnimation(.easeInOut(duration: Theme.AnimationDuration.splash)) {
-                        showLaunch = false
-                    }
-                }
             }
         }
     }
