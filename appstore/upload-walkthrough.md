@@ -124,7 +124,7 @@ App Store Connect → My Apps → Spool → iOS App tab:
    - **Promotional Text**: paste from `appstore/metadata.md`.
    - **Support URL**: `https://github.com/ctaloi/spool/issues`
    - **Marketing URL**: `https://getspool.news`
-   - **Screenshots**: drag the 5 PNGs from `appstore/screenshots/iphone-6.9/` (in order). Add iPad shots when you have them.
+   - **Screenshots**: drag the 5 PNGs from `appstore/screenshots/iphone-6.5-marketed/` (in order — App Store Connect surfaces only the 6.5" slot for new submissions; 1284 × 2778 with marketing chrome). Raw 6.9" device captures live in `appstore/screenshots/iphone-6.9/` for re-rendering; the larger marketed versions are in `iphone-6.9-marketed/` for whenever Apple adds the 6.9" slot back. Add iPad shots when you have them.
    - **Build**: pick the build that just processed.
    - **App Review Information**:
      - Sign-in info: leave blank (note in App Review Notes that sign-in
