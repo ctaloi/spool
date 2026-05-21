@@ -3,9 +3,23 @@ import Foundation
 @testable import Spool
 
 /// Tests the user-override resolution layer for SummaryPrompts.
-/// Each test runs against a fresh UserDefaults suite so overrides
-/// don't leak between cases.
-struct SummaryPromptsTests {
+///
+/// `class` (not `struct`) so deinit fires per-test — Swift Testing
+/// builds a fresh instance for every @Test, and we use init + deinit
+/// to bracket each case with a UserDefaults reset. Previously the
+/// tests wrote to UserDefaults.standard and never cleaned up, which
+/// polluted the production app's prompt storage (e.g., "Custom A."
+/// from `convenienceAccessorsUseResolver` would show up in the
+/// app's prompt editor after running the test suite on the same sim).
+final class SummaryPromptsTests {
+
+    init() {
+        resetOverrides()
+    }
+
+    deinit {
+        resetOverrides()
+    }
 
     /// Wipe any prompt-related defaults that previous tests (or the
     /// app itself) might have written.
