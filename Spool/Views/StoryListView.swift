@@ -1187,8 +1187,18 @@ struct StoryListView: View {
     @ViewBuilder
     private func mentionRow(record: MentionRecord) -> some View {
         Button {
-            if !mentionSeenIDs.contains(record.reply.id) {
-                modelContext.insert(SeenMention(id: record.reply.id))
+            // SeenMention.id is .unique — guard against duplicate
+            // insert when the user opens the same mention twice
+            // rapidly (the @Query snapshot may not yet reflect a
+            // very recent insert).
+            let replyID = record.reply.id
+            if !mentionSeenIDs.contains(replyID) {
+                let descriptor = FetchDescriptor<SeenMention>(
+                    predicate: #Predicate { $0.id == replyID }
+                )
+                if (try? modelContext.fetch(descriptor).first) == nil {
+                    modelContext.insert(SeenMention(id: replyID))
+                }
             }
             selectedStory = mentionAsHNItem(record)
         } label: {

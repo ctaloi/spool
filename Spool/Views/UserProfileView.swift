@@ -69,7 +69,15 @@ struct UserProfileView: View {
     }
 
     private func toggleFollow() {
-        if let existing = followed.first(where: { $0.username == username }) {
+        // Fresh fetch — the @Query snapshot may not yet reflect a
+        // very recent insert (e.g., rapid double-tap of Follow), and
+        // FollowedUser.username is `.unique`, so a duplicate insert
+        // throws on save.
+        let target = username
+        let descriptor = FetchDescriptor<FollowedUser>(
+            predicate: #Predicate { $0.username == target }
+        )
+        if let existing = try? modelContext.fetch(descriptor).first {
             modelContext.delete(existing)
         } else {
             modelContext.insert(FollowedUser(username: username))
