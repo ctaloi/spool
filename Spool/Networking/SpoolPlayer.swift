@@ -144,6 +144,22 @@ final class SpoolPlayer: NSObject, ObservableObject {
             name: AVAudioSession.routeChangeNotification,
             object: session
         )
+        // Voice cache: drop on foreground so a voice the user just
+        // installed in Settings → Accessibility gets picked up the
+        // next time NowPlayingView reads bestVoice().
+        center.addObserver(
+            self,
+            selector: #selector(handleWillEnterForeground(_:)),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+    }
+
+    @objc private nonisolated func handleWillEnterForeground(_ note: Notification) {
+        Task { @MainActor in
+            self.hasComputedBestVoice = false
+            self.cachedBestVoice = nil
+        }
     }
 
     @objc private nonisolated func handleAudioRouteChange(_ note: Notification) {
@@ -185,13 +201,25 @@ final class SpoolPlayer: NSObject, ObservableObject {
 
     // MARK: - Voice selection
 
+    /// Cached best-voice lookup. `AVSpeechSynthesisVoice.speechVoices()`
+    /// is surprisingly expensive — and on the simulator it logs a
+    /// fallback warning on every call — so a NowPlayingView body that
+    /// reads `bestVoice()` / `hasAdvancedVoice` re-renders dozens of
+    /// times a second during playback would otherwise jam the main
+    /// thread. Cache is dropped on app foreground so newly-installed
+    /// voices still get picked up after a Settings round-trip.
+    private var cachedBestVoice: AVSpeechSynthesisVoice?
+    private var hasComputedBestVoice = false
+
     /// Best-quality voice installed for the user's TTS language.
     /// Premium > Enhanced > Default. Falls back to whatever the system
     /// would have picked anyway if no language-matching voice is found.
-    /// Recomputed on each utterance start so a newly-installed voice
-    /// is picked up without restarting the app.
     func bestVoice() -> AVSpeechSynthesisVoice? {
-        Self.bestVoiceForCurrentLanguage()
+        if hasComputedBestVoice { return cachedBestVoice }
+        let v = Self.bestVoiceForCurrentLanguage()
+        cachedBestVoice = v
+        hasComputedBestVoice = true
+        return v
     }
 
     /// Static version of `bestVoice()` so off-main code (the audio
