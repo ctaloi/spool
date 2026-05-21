@@ -298,7 +298,7 @@ enum SummaryPrefetcher {
         let cleaned = MarkdownStripper.strip(raw)
         guard !cleaned.isEmpty else { return }
 
-        let voice = SpoolPlayer.bestVoiceForCurrentLanguage()
+        let voice = SpoolPlayer.preferredVoice()
         let rate: Float = AVSpeechUtteranceDefaultSpeechRate
         let key = AudioCacheKey(
             storyID: storyID,

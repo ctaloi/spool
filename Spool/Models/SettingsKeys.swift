@@ -29,6 +29,13 @@ enum SettingsKeys {
     /// with the default voice.
     static let advancedVoiceTipDismissed = "settings.advancedVoiceTipDismissed"
 
+    /// `AVSpeechSynthesisVoice.identifier` of the voice the user has
+    /// explicitly chosen for TTS. Empty string = "auto" (SpoolPlayer
+    /// picks the highest-quality voice matching the user's TTS
+    /// language). Falls back to auto if the stored identifier no
+    /// longer resolves — e.g., the user uninstalled the voice.
+    static let voicePreferenceID = "settings.voicePreferenceID"
+
     /// Whether the advanced (audio + Q&A) prompt editors are
     /// surfaced in Settings → Prompts. Hidden by default; users who
     /// want to tinker opt in via the toggle in the section.

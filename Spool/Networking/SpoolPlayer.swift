@@ -211,20 +211,33 @@ final class SpoolPlayer: NSObject, ObservableObject {
     private var cachedBestVoice: AVSpeechSynthesisVoice?
     private var hasComputedBestVoice = false
 
-    /// Best-quality voice installed for the user's TTS language.
-    /// Premium > Enhanced > Default. Falls back to whatever the system
-    /// would have picked anyway if no language-matching voice is found.
+    /// Voice the player will use for the next utterance. Honors the
+    /// user's pinned voice (Settings → Now Playing voice row → picker)
+    /// if one is set; otherwise picks the highest-quality voice that
+    /// matches the user's TTS language. Falls back to auto if the
+    /// pinned voice no longer resolves (e.g., user uninstalled it).
     func bestVoice() -> AVSpeechSynthesisVoice? {
         if hasComputedBestVoice { return cachedBestVoice }
-        let v = Self.bestVoiceForCurrentLanguage()
+        let v = Self.preferredVoice()
         cachedBestVoice = v
         hasComputedBestVoice = true
         return v
     }
 
-    /// Static version of `bestVoice()` so off-main code (the audio
-    /// prefetcher, in particular) can pick the same voice the player
-    /// will use — keeping the cache key stable.
+    /// Off-main-actor variant of `bestVoice()`. SummaryPrefetcher uses
+    /// this so the cache key for pre-rendered audio matches the voice
+    /// the player will actually use at playback time.
+    nonisolated static func preferredVoice() -> AVSpeechSynthesisVoice? {
+        let id = UserDefaults.standard.string(forKey: SettingsKeys.voicePreferenceID) ?? ""
+        if !id.isEmpty, let pinned = AVSpeechSynthesisVoice(identifier: id) {
+            return pinned
+        }
+        return bestVoiceForCurrentLanguage()
+    }
+
+    /// Highest-quality voice installed for the user's TTS language.
+    /// Premium > Enhanced > Default. Used as the auto-pick fallback
+    /// when no preference is set or the pinned voice is missing.
     nonisolated static func bestVoiceForCurrentLanguage() -> AVSpeechSynthesisVoice? {
         let target = AVSpeechSynthesisVoice.currentLanguageCode()
         let langPrefix = String(target.prefix(2))
@@ -238,6 +251,13 @@ final class SpoolPlayer: NSObject, ObservableObject {
             qualityRank(a.quality) < qualityRank(b.quality)
         }
         return best ?? AVSpeechSynthesisVoice(language: target)
+    }
+
+    /// Drop the cached voice so the next `bestVoice()` call recomputes.
+    /// Called by the picker after it writes a new preference.
+    func invalidateVoiceCache() {
+        cachedBestVoice = nil
+        hasComputedBestVoice = false
     }
 
     /// True iff the voice we'd select right now is Enhanced or

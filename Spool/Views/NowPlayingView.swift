@@ -167,21 +167,31 @@ struct NowPlayingView: View {
             .tint(Theme.accent)
             .padding(.vertical, 4)
 
-            // Active voice — quiet readout so the user can see what
-            // they're hearing and whether they're on a default vs
-            // enhanced / premium voice.
+            // Active voice — quiet readout that doubles as a tap
+            // target into the voice picker, so users can swap voices
+            // without leaving the now-playing screen.
             if let label = voiceLabel {
-                HStack(spacing: 8) {
-                    Text("Voice")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(label)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                NavigationLink {
+                    VoicePickerView()
+                        .environmentObject(player)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Voice")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(label)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
             }
         }
     }
