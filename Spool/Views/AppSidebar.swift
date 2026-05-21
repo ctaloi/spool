@@ -24,7 +24,6 @@ struct AppSidebar: View {
     private var archive: [SpooledStory]
     @Query private var followedUsers: [FollowedUser]
     @State private var profileTarget: String?
-    @State private var showAbout: Bool = false
     @State private var showSettings: Bool = false
 
     let onSignIn: () -> Void
@@ -53,7 +52,6 @@ struct AppSidebar: View {
             browseSection
             librarySection
             settingsSection
-            aboutSection
         }
         .listStyle(.sidebar)
         .navigationTitle("Spool")
@@ -84,9 +82,6 @@ struct AppSidebar: View {
             set: { profileTarget = $0?.value }
         )) { target in
             UserProfileView(username: target.value)
-        }
-        .sheet(isPresented: $showAbout) {
-            AboutView()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -242,37 +237,6 @@ struct AppSidebar: View {
         }
     }
 
-    @ViewBuilder
-    private var aboutSection: some View {
-        Section("About") {
-            Button {
-                showAbout = true
-            } label: {
-                HStack {
-                    // Section header is already "About", so the row
-                    // label is just the product name to avoid the
-                    // redundant "About > About Spool".
-                    Label("Spool", systemImage: "info.circle")
-                        .foregroundStyle(.primary)
-                    Spacer()
-                    Text(Self.versionString)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-    }
-
-    private static var versionString: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "—"
-        let build = info?["CFBundleVersion"] as? String ?? "—"
-        return "\(short) (\(build))"
-    }
 }
 
 /// Lets `sheet(item:)` use a plain String username.

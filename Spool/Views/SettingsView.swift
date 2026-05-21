@@ -244,7 +244,18 @@ struct SettingsView: View {
     @ViewBuilder
     private var aboutSection: some View {
         Section {
-            LabeledContent("Version", value: Self.versionString)
+            NavigationLink {
+                AboutView()
+            } label: {
+                HStack {
+                    Label("About", systemImage: "info.circle")
+                    Spacer()
+                    Text(Self.versionString)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
         }
     }
 

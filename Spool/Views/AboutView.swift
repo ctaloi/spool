@@ -1,37 +1,30 @@
 import SwiftUI
 
 /// Spool identity, version, source-code link, and a short pitch on
-/// the tech stack + privacy stance. Presented as a sheet from the
-/// sidebar's About entry.
+/// the tech stack + privacy stance. Pushed from Settings via
+/// `NavigationLink` so the caller owns the nav chrome — no inner
+/// NavigationStack/toolbar of our own.
 struct AboutView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
     private static let githubURL = URL(string: "https://github.com/ctaloi/spool")!
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 28) {
-                    identityBlock
-                    openSourceBlock
-                    builtWithBlock
-                    privacyBlock
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 18)
-                .frame(maxWidth: .infinity)
+        ScrollView {
+            VStack(spacing: 28) {
+                identityBlock
+                openSourceBlock
+                builtWithBlock
+                privacyBlock
+                Spacer(minLength: 0)
             }
-            .scrollEdgeEffectStyle(.soft, for: .top)
-            .navigationTitle("About")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
+            .frame(maxWidth: .infinity)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .navigationTitle("About")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Sections
