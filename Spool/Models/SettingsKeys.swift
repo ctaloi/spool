@@ -36,6 +36,17 @@ enum SettingsKeys {
     /// longer resolves — e.g., the user uninstalled the voice.
     static let voicePreferenceID = "settings.voicePreferenceID"
 
+    /// True once the user has seen and dismissed the first-launch
+    /// Apple Intelligence availability gate. Spool's headline
+    /// features (summaries, audio queue) all require Apple
+    /// Intelligence; the gate's job is to communicate that up front
+    /// so a user without an eligible device or with AI disabled
+    /// understands what's missing instead of finding broken-looking
+    /// buttons. Once acknowledged, the gate doesn't re-appear even
+    /// if AI later becomes available — the in-app states are clear
+    /// enough on their own at that point.
+    static let intelligenceGateSeen = "settings.intelligenceGateSeen"
+
     /// Whether the advanced (audio + Q&A) prompt editors are
     /// surfaced in Settings → Prompts. Hidden by default; users who
     /// want to tinker opt in via the toggle in the section.

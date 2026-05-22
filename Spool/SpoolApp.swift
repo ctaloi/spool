@@ -14,6 +14,18 @@ struct SpoolApp: App {
     /// every time the app moves to background. iOS only honors the
     /// most recently submitted request per identifier.
     @Environment(\.scenePhase) private var scenePhase
+    /// One-shot guard for the Apple Intelligence first-launch gate.
+    /// Set true after the user acknowledges the gate; never re-shown
+    /// in the same session.
+    @AppStorage(SettingsKeys.intelligenceGateSeen) private var intelligenceGateSeen: Bool = false
+    /// Whether the gate is currently presented. Computed once when
+    /// scenePhase first hits .active so iOS pre-warm doesn't fire it
+    /// invisibly.
+    @State private var showIntelligenceGate: Bool = false
+    /// Snapshot of the availability the gate is showing — capture
+    /// once so the message doesn't flicker if availability briefly
+    /// changes (e.g., modelNotReady → available mid-screen).
+    @State private var gateAvailability: SummaryAvailability = .available
 
     init() {
         // Two distinct nav-bar appearances:
@@ -76,6 +88,16 @@ struct SpoolApp: App {
                         .environmentObject(spoolPlayer)
                 }
                 .animation(.easeInOut(duration: Theme.AnimationDuration.fast), value: spoolPlayer.isActive)
+                // First-launch onboarding gate when Apple Intelligence
+                // isn't available — spells out the situation up front
+                // so users with the wrong hardware or the wrong toggle
+                // state don't find broken-looking buttons later.
+                .fullScreenCover(isPresented: $showIntelligenceGate) {
+                    AppleIntelligenceGateView(
+                        availability: gateAvailability,
+                        isPresented: $showIntelligenceGate
+                    )
+                }
             .onOpenURL { url in
                 router.handle(url)
             }
@@ -137,6 +159,19 @@ struct SpoolApp: App {
             // transition so the freshest interval is always pending.
             if phase == .background {
                 MentionsNotifier.scheduleNextRefresh()
+            }
+            // Apple Intelligence gate evaluation. Gated on scenePhase
+            // active so iOS pre-warm doesn't sneak the cover up
+            // invisibly. Only ever shows once — `intelligenceGateSeen`
+            // sticks even if AI becomes available later, since the
+            // in-app states are clear enough on their own at that
+            // point.
+            if phase == .active, !intelligenceGateSeen, !showIntelligenceGate {
+                let current = SummaryService.shared.availability
+                if current != .available {
+                    gateAvailability = current
+                    showIntelligenceGate = true
+                }
             }
         }
     }

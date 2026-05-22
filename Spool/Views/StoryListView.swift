@@ -802,9 +802,64 @@ struct StoryListView: View {
         }
     }
 
+    /// Inline replacement for spool's empty state when Apple
+    /// Intelligence isn't available. Spool's audio queue is the
+    /// feature most dependent on the on-device LLM — without AI it
+    /// can't render summaries OR generate audio. Showing the regular
+    /// "queue is empty" message + a non-functional Play All button
+    /// would be misleading.
+    @ViewBuilder
+    private func spoolIntelligenceGate(for availability: SummaryAvailability) -> some View {
+        switch availability {
+        case .available:
+            EmptyView()
+        case .appleIntelligenceDisabled:
+            ContentUnavailableView {
+                Label("Apple Intelligence is off", systemImage: "sparkles")
+            } description: {
+                Text("Spool's audio queue runs on your phone's on-device language model. Turn on Apple Intelligence in iOS Settings to use it.")
+            } actions: {
+                Button("Open iOS Settings") {
+                    if let url = URL(string: "App-prefs:Apple Intelligence") {
+                        UIApplication.shared.open(url) { ok in
+                            if !ok, let fallback = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(fallback)
+                            }
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(Theme.accent)
+            }
+        case .modelNotReady:
+            ContentUnavailableView {
+                Label("Apple Intelligence is downloading", systemImage: "arrow.down.circle")
+            } description: {
+                Text("Spool's audio queue lights up automatically once the on-device model finishes installing.")
+            }
+        case .unsupportedDevice:
+            ContentUnavailableView {
+                Label("Audio queue isn't supported here", systemImage: "iphone.gen3")
+            } description: {
+                Text("Spool's audio queue needs Apple Intelligence, which only runs on iPhone 15 Pro and newer. You can still bookmark stories from Saved and read them later.")
+            }
+        case .other(let message):
+            ContentUnavailableView(
+                "Apple Intelligence unavailable",
+                systemImage: "sparkles",
+                description: Text(message)
+            )
+        }
+    }
+
     @ViewBuilder
     private var spoolRows: some View {
-        if spool.isEmpty {
+        let aiAvailability = SummaryService.shared.availability
+        if aiAvailability != .available {
+            statusRow {
+                spoolIntelligenceGate(for: aiAvailability)
+            }
+        } else if spool.isEmpty {
             statusRow {
                 ContentUnavailableView(
                     "Your spool is empty",
