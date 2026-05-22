@@ -17,7 +17,7 @@ settings:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "3"
+    CURRENT_PROJECT_VERSION: "4"
     PRODUCT_BUNDLE_IDENTIFIER: news.getspool.app
     # iOS 26 recommended settings — applied via Xcode's
     # "Update to Recommended Settings" prompt and mirrored here so they
