@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#b91c26">
+<title>Bees Playbook Trainer</title>
+<style>
+  :root {
+    --red: #d5232e;
+    --red-dark: #b91c26;
+    --navy: #1b2430;
+    --gold: #ffc93c;
+    --grass: #2e7d3a;
+    --grass-dark: #276a32;
+    --chalk: rgba(255,255,255,.85);
+    --card: #ffffff;
+    --ink: #22272e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--navy);
+    color: #fff;
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom);
+    touch-action: manipulation;
+    -webkit-user-select: none; user-select: none;
+  }
+  header {
+    background: linear-gradient(160deg, var(--red) 0%, var(--red-dark) 100%);
+    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  }
+  header .bee { font-size: 30px; }
+  header h1 { font-size: 19px; margin: 0; letter-spacing: .5px; text-transform: uppercase; font-weight: 800; }
+  header .sub { font-size: 11px; opacity: .85; margin-top: 1px; }
+  header .who {
+    margin-left: auto; font-size: 13px; font-weight: 700;
+    background: rgba(0,0,0,.25); padding: 7px 12px; border-radius: 20px;
+    border: none; color: #fff; display: flex; align-items: center; gap: 6px;
+  }
+  nav {
+    display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto;
+    background: #141b24;
+    position: sticky; top: 0; z-index: 40;
+  }
+  nav button {
+    flex: 1; white-space: nowrap;
+    background: rgba(255,255,255,.08); color: #fff; border: none;
+    padding: 11px 14px; border-radius: 12px; font-size: 14px; font-weight: 700;
+    transition: background .15s;
+  }
+  nav button.active { background: var(--gold); color: var(--navy); }
+  main { padding: 14px; max-width: 720px; margin: 0 auto; }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  h2 { font-size: 17px; margin: 4px 2px 10px; }
+  .muted { opacity: .7; font-size: 13px; line-height: 1.45; }
+
+  /* ---- field ---- */
+  .fieldwrap {
+    background: linear-gradient(180deg, var(--grass) 0%, var(--grass-dark) 100%);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: inset 0 0 40px rgba(0,0,0,.25), 0 4px 14px rgba(0,0,0,.35);
+    position: relative;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .playtitle {
+    position: absolute; top: 8px; left: 10px; right: 10px;
+    display: flex; justify-content: space-between; align-items: center; pointer-events: none;
+  }
+  .playtitle .name {
+    background: var(--red); color: #fff; font-weight: 800; font-size: 14px;
+    padding: 5px 12px; border-radius: 8px; letter-spacing: .3px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+  }
+  .cue {
+    margin-top: 10px; background: rgba(255,255,255,.08);
+    border-left: 4px solid var(--gold);
+    padding: 10px 12px; border-radius: 0 10px 10px 0;
+    font-size: 14px; line-height: 1.45; min-height: 20px;
+  }
+
+  /* ---- buttons / choices ---- */
+  .btnrow { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn {
+    background: var(--red); border: none; color: #fff;
+    font-size: 15px; font-weight: 800; padding: 13px 18px; border-radius: 13px;
+    box-shadow: 0 3px 0 rgba(0,0,0,.3);
+    flex: 1; min-width: 130px;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+  .btn.gold { background: var(--gold); color: var(--navy); }
+  .btn.ghost { background: rgba(255,255,255,.12); }
+  .btn.big { font-size: 17px; padding: 16px 18px; }
+
+  .playlist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .playlist button {
+    background: rgba(255,255,255,.09); border: 2px solid transparent; color: #fff;
+    padding: 12px 10px; border-radius: 12px; font-size: 13.5px; font-weight: 700; text-align: left;
+  }
+  .playlist button.sel { border-color: var(--gold); background: rgba(255,201,60,.15); }
+  .playlist button .n { color: var(--gold); font-weight: 800; margin-right: 6px; }
+
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 12px; }
+  .choices button {
+    background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.15); color: #fff;
+    padding: 15px 10px; border-radius: 13px; font-size: 14.5px; font-weight: 700; min-height: 58px;
+  }
+  .choices button.correct { background: #2e9e4f; border-color: #57d47e; animation: pop .3s; }
+  .choices button.wrong { background: #a3252d; border-color: #e2606a; }
+  .choices button:disabled { opacity: .92; }
+  @keyframes pop { 50% { transform: scale(1.06); } }
+
+  .routechips { display: flex; gap: 9px; margin-top: 12px; }
+  .routechips button {
+    flex: 1; border: none; border-radius: 13px; padding: 15px 8px;
+    font-size: 17px; font-weight: 900; color: var(--navy); min-height: 56px;
+  }
+
+  /* ---- drive bar ---- */
+  .drive {
+    margin: 12px 0; background: rgba(255,255,255,.08); border-radius: 12px; padding: 10px 12px;
+  }
+  .drive .top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 7px; }
+  .drive .bar { height: 26px; background: #163019; border-radius: 8px; position: relative; overflow: hidden; }
+  .drive .bar .stripes { position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(90deg, transparent 0 9.5%, rgba(255,255,255,.25) 9.5% 10%); }
+  .drive .bar .ez { position: absolute; right: 0; top: 0; bottom: 0; width: 8%; background: var(--red); opacity: .8; }
+  .drive .ball { position: absolute; top: 50%; transform: translate(-50%,-50%); font-size: 18px; transition: left .7s cubic-bezier(.3,1.4,.5,1); }
+  .streak { color: var(--gold); }
+
+  /* ---- leaderboard ---- */
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 11px 8px; text-align: left; font-size: 14.5px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  th { font-size: 12px; text-transform: uppercase; opacity: .6; letter-spacing: .5px; }
+  tr.me { background: rgba(255,201,60,.13); }
+  td.rank { font-weight: 900; color: var(--gold); width: 36px; }
+
+  /* ---- overlays ---- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15,20,28,.94); z-index: 100;
+    display: flex; align-items: center; justify-content: center; padding: 22px;
+  }
+  .overlay .box {
+    background: var(--navy); border: 1px solid rgba(255,255,255,.15);
+    border-radius: 20px; padding: 26px 22px; max-width: 380px; width: 100%;
+    text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.6);
+  }
+  .overlay .box .bigbee { font-size: 52px; }
+  .overlay h2 { font-size: 21px; margin: 10px 0 4px; }
+  .overlay input {
+    width: 100%; margin: 14px 0 4px; padding: 14px; border-radius: 12px;
+    border: 2px solid rgba(255,255,255,.2); background: rgba(255,255,255,.07);
+    color: #fff; font-size: 17px; text-align: center; font-weight: 700;
+  }
+  .overlay input:focus { outline: none; border-color: var(--gold); }
+  .err { color: #ff8a8a; font-size: 13px; min-height: 18px; margin-top: 6px; }
+
+  .banner {
+    position: fixed; left: 50%; top: 38%; transform: translate(-50%,-50%) scale(.6);
+    font-size: 42px; font-weight: 900; color: var(--gold);
+    text-shadow: 0 3px 0 var(--red), 0 6px 24px rgba(0,0,0,.6);
+    opacity: 0; pointer-events: none; z-index: 90; white-space: nowrap;
+    letter-spacing: 1px;
+  }
+  .banner.show { animation: slam 1.6s ease forwards; }
+  @keyframes slam {
+    10% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); }
+    22% { transform: translate(-50%,-50%) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%,-60%) scale(1); }
+  }
+  .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 85; overflow: hidden; }
+  .confetti i {
+    position: absolute; top: -14px; width: 10px; height: 14px; opacity: .95;
+    animation: fall linear forwards;
+  }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: .8; } }
+
+  .cardimg { width: 100%; border-radius: 14px; margin-top: 10px; background: #fff; }
+  .posgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+  .posgrid button {
+    background: rgba(255,255,255,.09); border: 2px solid rgba(255,255,255,.15);
+    border-radius: 15px; color: #fff; padding: 18px 10px; font-size: 15px; font-weight: 800;
+  }
+  .posgrid button .big { display: block; font-size: 30px; margin-bottom: 4px; }
+  .scorepill {
+    display: inline-block; background: rgba(255,255,255,.1); border-radius: 20px;
+    padding: 6px 14px; font-weight: 800; font-size: 14px; margin: 2px 4px 2px 0;
+  }
+  footer { text-align: center; padding: 18px; font-size: 11.5px; opacity: .45; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="bee">🐝</span>
+  <div>
+    <h1>Bees Playbook Trainer</h1>
+    <div class="sub">B'Ville Bees 9U · Power I Right</div>
+  </div>
+  <button class="who" id="whoBtn">🏈 <span id="whoName">Player</span></button>
+</header>
+
+<nav>
+  <button data-tab="film" class="active">🎬 Film Room</button>
+  <button data-tab="name">❓ Name It</button>
+  <button data-tab="route">🏃 My Route</button>
+  <button data-tab="board">🏆 Leaders</button>
+</nav>
+
+<main>
+
+  <!-- FILM ROOM -->
+  <section class="panel active" id="panel-film">
+    <h2>🎬 Film Room — learn the plays</h2>
+    <div class="playlist" id="filmList"></div>
+    <div class="fieldwrap">
+      <div class="playtitle"><span class="name" id="filmTitle">Pick a play</span></div>
+      <svg id="filmField" viewBox="0 0 100 74"></svg>
+    </div>
+    <div class="cue" id="filmCue">Tap any play above, then hit Run Play to watch it happen.</div>
+    <div class="btnrow">
+      <button class="btn gold big" id="filmRun">▶ Run Play</button>
+      <button class="btn ghost" id="filmCard">📋 Coach's Card</button>
+    </div>
+    <img class="cardimg" id="filmCardImg" style="display:none" alt="Playbook card">
+  </section>
+
+  <!-- NAME THAT PLAY -->
+  <section class="panel" id="panel-name">
+    <h2>❓ Name That Play</h2>
+    <p class="muted">Watch the play run, then name it — fast answers gain extra yards. Reach the end zone for a touchdown!</p>
+    <div class="drive" id="nameDrive" style="display:none">
+      <div class="top"><span id="nameQno"></span><span>🔥 Streak: <b class="streak" id="nameStreak">0</b> · Yards: <b id="nameYards">0</b></span></div>
+      <div class="bar"><div class="stripes"></div><div class="ez"></div><span class="ball" id="nameBall" style="left:4%">🏈</span></div>
+    </div>
+    <div class="fieldwrap" id="nameFieldWrap" style="display:none">
+      <div class="playtitle"><span class="name">???</span></div>
+      <svg id="nameField" viewBox="0 0 100 74"></svg>
+    </div>
+    <div class="choices" id="nameChoices"></div>
+    <div class="btnrow" id="nameStartRow"><button class="btn gold big" id="nameStart">🏈 Kick Off!</button></div>
+    <div class="cue" id="nameMsg" style="display:none"></div>
+  </section>
+
+  <!-- RUN YOUR ROUTE -->
+  <section class="panel" id="panel-route">
+    <h2>🏃 Run Your Route</h2>
+    <div id="routePick">
+      <p class="muted">Coach calls the play — do YOU know where to go? Pick your position:</p>
+      <div class="posgrid" id="posGrid"></div>
+    </div>
+    <div id="routeGame" style="display:none">
+      <div class="drive">
+        <div class="top"><span id="routeQno"></span><span>🔥 Streak: <b class="streak" id="routeStreak">0</b> · Yards: <b id="routeYards">0</b></span></div>
+        <div class="bar"><div class="stripes"></div><div class="ez"></div><span class="ball" id="routeBall" style="left:4%">🏈</span></div>
+      </div>
+      <div class="cue" id="routeCall"></div>
+      <div class="fieldwrap">
+        <div class="playtitle"><span class="name" id="routePos"></span></div>
+        <svg id="routeField" viewBox="0 0 100 74"></svg>
+      </div>
+      <div class="routechips" id="routeChips"></div>
+      <div class="cue" id="routeMsg" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- LEADERBOARD -->
+  <section class="panel" id="panel-board">
+    <h2>🏆 Team Leaderboard</h2>
+    <p class="muted" id="boardHint">Best total yards per player. Master every play and take the top spot!</p>
+    <table>
+      <thead><tr><th></th><th>Player</th><th>Yards</th><th>Game</th></tr></thead>
+      <tbody id="boardBody"></tbody>
+    </table>
+    <div class="btnrow"><button class="btn ghost" id="boardClear">Reset this device's board</button></div>
+  </section>
+
+</main>
+
+<footer>Go Bees! 🐝 · Made for the B'Ville Bees 9U</footer>
+
+<div class="banner" id="banner"></div>
+<div class="confetti" id="confetti"></div>
+
+<!-- PASSWORD GATE -->
+<div class="overlay" id="gateOverlay">
+  <div class="box">
+    <div class="bigbee">🐝</div>
+    <h2>Bees Playbook Trainer</h2>
+    <p class="muted">Team members only! Enter the team password.</p>
+    <input id="gateInput" type="text" placeholder="Team password" autocomplete="off" autocapitalize="none">
+    <div class="err" id="gateErr"></div>
+    <button class="btn gold big" style="width:100%" id="gateGo">Let's Go!</button>
+  </div>
+</div>
+
+<!-- NAME ENTRY -->
+<div class="overlay" id="nameOverlay" style="display:none">
+  <div class="box">
+    <div class="bigbee">🏈</div>
+    <h2>What's your name?</h2>
+    <p class="muted">So the team knows who's climbing the leaderboard.</p>
+    <input id="playerInput" type="text" placeholder="Your first name" maxlength="14" autocomplete="off">
+    <div class="err" id="playerErr"></div>
+    <button class="btn gold big" style="width:100%" id="playerGo">Take the Field</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   PLAY DATA — recreated from the B'Ville Bees 9U playbook
+   Field coords: viewBox 0..100 wide, 0..74 tall, LOS at y=42
+   ========================================================= */
+const LOS = 42;
+const LINE = [
+  { id:'TEL', label:'TE', x:31, y:LOS },
+  { id:'LT',  label:'LT', x:38, y:LOS },
+  { id:'LG',  label:'LG', x:44, y:LOS },
+  { id:'C',   label:'C',  x:50, y:LOS },
+  { id:'RG',  label:'RG', x:56, y:LOS },
+  { id:'RT',  label:'RT', x:62, y:LOS },
+  { id:'TER', label:'TE', x:69, y:LOS },
+];
+const BACKS = [
+  { id:'Q', label:'Q', x:50, y:47 },
+  { id:'B3', label:'3', x:50, y:53 },
+  { id:'B4', label:'4', x:58, y:53 },
+  { id:'B2', label:'2', x:50, y:59 },
+];
+const DEF = [
+  { label:'E', x:31, y:38 }, { label:'T', x:38, y:38 }, { label:'N', x:47, y:38 },
+  { label:'T', x:57, y:38 }, { label:'E', x:66, y:38 },
+  { label:'W', x:37, y:32 }, { label:'M', x:49, y:32 }, { label:'S', x:59, y:32 },
+  { label:'C', x:20, y:29 }, { label:'C', x:80, y:29 }, { label:'S', x:50, y:22 },
+];
+
+/* Each play: routes per player id (list of points), carrier, optional pass.
+   'stay' means freeze (hard count). */
+const PLAYS = [
+  {
+    key:'noplay', num:1, name:'No Play (Hard Count)',
+    cue:"FREEZE! Nobody moves a muscle. We use a loud cadence to trick the defense into jumping offsides. Free 5 yards!",
+    card:'cards/play1-noplay.png',
+    carrier:null,
+    routes:{ Q:'stay', B2:'stay', B3:'stay', B4:'stay', TER:'stay' },
+  },
+  {
+    key:'sneak', num:2, name:'QB Sneak',
+    cue:"Quarterback keeps it and dives right behind the center. Quick and tough — great for short yardage!",
+    card:'cards/play2-qbsneak.png',
+    carrier:'Q',
+    routes:{
+      Q:[[50,47],[52,41],[53,33]],
+      B3:[[50,53],[51,48]],
+      B4:[[58,53],[57,48]],
+      B2:[[50,59],[50,54]],
+      TER:[[69,42],[68,39]],
+    },
+  },
+  {
+    key:'punch32', num:3, name:'32 Punch',
+    cue:"3-back takes the handoff and PUNCHES it right up the gut through the 2-hole. 2 and 4 swing right to block.",
+    card:'cards/play3-32punch.png',
+    carrier:'B3',
+    routes:{
+      Q:[[50,47],[51,50],[52,51]],
+      B3:[[50,53],[51,45],[52,33]],
+      B4:[[58,53],[64,50],[67,44]],
+      B2:[[50,59],[58,57],[66,49],[69,43]],
+      TER:[[69,42],[70,39]],
+    },
+  },
+  {
+    key:'boot', num:4, name:'32 Punch Power Boot',
+    cue:"Fake the punch to the 3-back… QB hides the ball and BOOTS around the right end. Sneaky!",
+    card:'cards/play4-32punchboot.png',
+    carrier:'Q',
+    routes:{
+      Q:[[50,47],[52,50],[58,51],[66,48],[74,40],[79,33]],
+      B3:[[50,53],[51,45],[52,38]],
+      B4:[[58,53],[64,50],[68,44]],
+      B2:[[50,59],[60,56],[68,48]],
+      TER:[[69,42],[70,39]],
+    },
+  },
+  {
+    key:'punchpass', num:5, name:'32 Punch Pass',
+    cue:"Fake the punch, then THROW it! Tight end sneaks deep down the field while the 2-back swings to the flat.",
+    card:'cards/play5-32punchpass.png',
+    carrier:'Q', pass:{ from:'Q', to:'TER' },
+    routes:{
+      Q:[[50,47],[51,51]],
+      B3:[[50,53],[51,46]],
+      B4:[[58,53],[62,50]],
+      B2:[[50,59],[62,57],[74,49],[81,43]],
+      TER:[[69,42],[70,30],[70,14]],
+    },
+  },
+  {
+    key:'lead26', num:6, name:'26 Lead',
+    cue:"2-back gets the ball and follows the 4-back through the 6-hole, off the right edge. Follow your blocker!",
+    card:'cards/play6-26lead.png',
+    carrier:'B2',
+    routes:{
+      Q:[[50,47],[52,49],[50,51]],
+      B3:[[50,53],[44,56]],
+      B4:[[58,53],[61,48],[63,42]],
+      B2:[[50,59],[53,54],[60,44],[63,33]],
+      TER:[[69,42],[70,39]],
+    },
+  },
+  {
+    key:'stinger26', num:7, name:'26 Lead Stinger',
+    cue:"Looks just like 26 Lead… but the 2-back STINGS it tighter inside the tight end. Same start, different bite!",
+    card:'cards/play7-26leadstinger.png',
+    carrier:'B2',
+    routes:{
+      Q:[[50,47],[52,49],[50,51]],
+      B3:[[50,53],[44,56]],
+      B4:[[58,53],[63,49],[66,43]],
+      B2:[[50,59],[54,53],[58,47],[60,37]],
+      TER:[[69,42],[70,39]],
+    },
+  },
+];
+
+const POSITIONS = [
+  { id:'Q',  label:'Quarterback', icon:'🎯', short:'Q'  },
+  { id:'B2', label:'2 Back',      icon:'⚡', short:'2'  },
+  { id:'B3', label:'3 Back',      icon:'💪', short:'3'  },
+  { id:'B4', label:'4 Back',      icon:'🛡️', short:'4'  },
+];
+
+/* =========================================================
+   Basics: storage, gate, player name
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { localStorage.setItem(k, JSON.stringify(v)); },
+};
+
+function initGate() {
+  if (store.get('bees-auth', false)) { $('gateOverlay').style.display = 'none'; initPlayer(); return; }
+  const go = () => {
+    const v = $('gateInput').value.trim().toLowerCase();
+    if (v === 'gobees') {
+      store.set('bees-auth', true);
+      $('gateOverlay').style.display = 'none';
+      initPlayer();
+    } else {
+      $('gateErr').textContent = 'Not quite — ask your coach for the password!';
+      $('gateInput').value = '';
+    }
+  };
+  $('gateGo').onclick = go;
+  $('gateInput').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+}
+
+function initPlayer(force) {
+  const existing = store.get('bees-player', '');
+  if (existing && !force) { $('whoName').textContent = existing; return; }
+  $('nameOverlay').style.display = 'flex';
+  $('playerInput').value = existing;
+  const go = () => {
+    const v = $('playerInput').value.trim().replace(/[<>]/g, '');
+    if (v.length < 2) { $('playerErr').textContent = 'Give us at least 2 letters!'; return; }
+    store.set('bees-player', v);
+    $('whoName').textContent = v;
+    $('nameOverlay').style.display = 'none';
+  };
+  $('playerGo').onclick = go;
+  $('playerInput').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+}
+$('whoBtn').onclick = () => initPlayer(true);
+
+/* =========================================================
+   Tabs
+   ========================================================= */
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    $('panel-' + b.dataset.tab).classList.add('active');
+    if (b.dataset.tab === 'board') renderBoard();
+  };
+});
+
+/* =========================================================
+   SVG field rendering + animation
+   ========================================================= */
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+function drawField(svg, { showDefense = true } = {}) {
+  svg.innerHTML = '';
+  // yard lines
+  for (let y = 6; y <= 70; y += 8) {
+    el('line', { x1:2, y1:y, x2:98, y2:y, stroke:'rgba(255,255,255,.28)', 'stroke-width':.35 }, svg);
+    for (let x = 12; x <= 88; x += 19) {
+      el('line', { x1:x, y1:y-1, x2:x, y2:y+1, stroke:'rgba(255,255,255,.22)', 'stroke-width':.35 }, svg);
+    }
+  }
+  el('line', { x1:2, y1:LOS, x2:98, y2:LOS, stroke:'rgba(255,255,255,.75)', 'stroke-width':.7 }, svg);
+  if (showDefense) {
+    for (const d of DEF) {
+      const g = el('g', { opacity:.55 }, svg);
+      el('path', { d:`M ${d.x-2.2} ${d.y-1.9} L ${d.x+2.2} ${d.y-1.9} L ${d.x} ${d.y+1.9} Z`,
+        fill:'none', stroke:'#dfe6ee', 'stroke-width':.5 }, g);
+      const t = el('text', { x:d.x, y:d.y-0.3, 'text-anchor':'middle', 'font-size':2.3,
+        fill:'#dfe6ee', 'font-weight':'700' }, g);
+      t.textContent = d.label;
+    }
+  }
+  return svg;
+}
+
+function drawPlayer(svg, p, { red = false, square = false } = {}) {
+  const g = el('g', { 'data-id': p.id }, svg);
+  if (square) {
+    el('rect', { x:p.x-2.1, y:p.y-2.1, width:4.2, height:4.2, rx:.6,
+      fill:'#f4f6f8', stroke:'#39424e', 'stroke-width':.55 }, g);
+  } else {
+    el('circle', { cx:p.x, cy:p.y, r:2.2,
+      fill: red ? '#d5232e' : '#f4f6f8',
+      stroke: red ? '#8f131c' : '#39424e', 'stroke-width':.55 }, g);
+  }
+  const t = el('text', { x:p.x, y:p.y+0.85, 'text-anchor':'middle', 'font-size':2.4,
+    fill: red ? '#fff' : '#1b2430', 'font-weight':'800' }, g);
+  t.textContent = p.label;
+  return g;
+}
+
+function drawFormation(svg, play) {
+  for (const p of LINE) {
+    const isCarrier = play && play.carrier === p.id;
+    const isTarget = play && play.pass && play.pass.to === p.id;
+    drawPlayer(svg, p, { red: isCarrier || isTarget, square: p.id === 'C' });
+  }
+  for (const p of BACKS) {
+    drawPlayer(svg, p, { red: play && play.carrier === p.id });
+  }
+}
+
+function pathD(pts) {
+  if (pts.length === 2) return `M ${pts[0][0]} ${pts[0][1]} L ${pts[1][0]} ${pts[1][1]}`;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i+1][0]) / 2, my = (pts[i][1] + pts[i+1][1]) / 2;
+    d += ` Q ${pts[i][0]} ${pts[i][1]} ${mx} ${my}`;
+  }
+  const last = pts[pts.length-1];
+  d += ` L ${last[0]} ${last[1]}`;
+  return d;
+}
+
+let animToken = 0;
+function animatePlay(svg, play, done) {
+  const token = ++animToken;
+  drawField(svg);
+  drawFormation(svg, play);
+  const DURATION = 2400;
+
+  // route lines revealed progressively
+  const movers = [];
+  const routeLayer = el('g', {}, svg);
+  for (const id in play.routes) {
+    const r = play.routes[id];
+    const roster = [...LINE, ...BACKS];
+    const base = roster.find(p => p.id === id);
+    if (!base) continue;
+    if (r === 'stay') continue;
+    const isCarrier = play.carrier === id;
+    const isTarget = play.pass && play.pass.to === id;
+    const color = (isCarrier || isTarget) ? '#ff5560' : '#39e0c0';
+    const path = el('path', { d: pathD(r), fill:'none', stroke:color,
+      'stroke-width':.75, 'stroke-linecap':'round', opacity:.9 }, routeLayer);
+    const len = path.getTotalLength();
+    path.style.strokeDasharray = len;
+    path.style.strokeDashoffset = len;
+    const node = svg.querySelector(`g[data-id="${id}"]`);
+    movers.push({ path, len, node, base });
+    svg.appendChild(node); // keep players above route lines
+  }
+
+  // hard count: shake everyone slightly instead
+  if (play.routes.Q === 'stay') {
+    let n = 0;
+    const iv = setInterval(() => {
+      if (token !== animToken) { clearInterval(iv); return; }
+      n++;
+      svg.querySelectorAll('g[data-id]').forEach(g => {
+        g.setAttribute('transform', n % 2 ? 'translate(0,.35)' : 'translate(0,0)');
+      });
+      if (n > 7) {
+        clearInterval(iv);
+        svg.querySelectorAll('g[data-id]').forEach(g => g.removeAttribute('transform'));
+        done && done();
+      }
+    }, 180);
+    return;
+  }
+
+  // ball
+  const ball = el('ellipse', { cx:50, cy:45, rx:1.1, ry:.75, fill:'#8a4b12', stroke:'#fff', 'stroke-width':.22 }, svg);
+
+  const start = performance.now();
+  function frame(now) {
+    if (token !== animToken) return;
+    const t = Math.min(1, (now - start) / DURATION);
+    const ease = t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+    for (const m of movers) {
+      m.path.style.strokeDashoffset = m.len * (1 - ease);
+      const pt = m.path.getPointAtLength(m.len * ease);
+      m.node.setAttribute('transform', `translate(${pt.x - m.base.x}, ${pt.y - m.base.y})`);
+    }
+    // ball follows carrier; on pass plays it flies to the target for the last 40%
+    let ballOwner = play.carrier;
+    if (play.pass && t > .6) ballOwner = play.pass.to;
+    const own = movers.find(m => m.base.id === ballOwner);
+    if (own) {
+      if (play.pass && t > .6 && ballOwner === play.pass.to) {
+        const thrower = movers.find(m => m.base.id === play.pass.from);
+        const tp = thrower.path.getPointAtLength(thrower.len);
+        const cp = own.path.getPointAtLength(own.len * ease);
+        const k = (t - .6) / .4;
+        const arc = Math.sin(k * Math.PI) * 6;
+        ball.setAttribute('cx', tp.x + (cp.x - tp.x) * k);
+        ball.setAttribute('cy', tp.y + (cp.y - tp.y) * k - arc);
+      } else {
+        const pt = own.path.getPointAtLength(own.len * ease);
+        ball.setAttribute('cx', pt.x + .5);
+        ball.setAttribute('cy', pt.y + .5);
+      }
+    }
+    if (t < 1) requestAnimationFrame(frame);
+    else done && done();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* =========================================================
+   Speech (play calls)
+   ========================================================= */
+function say(text) {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = .95; u.pitch = 1.05;
+    speechSynthesis.speak(u);
+  } catch {}
+}
+
+/* =========================================================
+   FILM ROOM
+   ========================================================= */
+let filmPlay = null;
+function initFilm() {
+  const list = $('filmList');
+  PLAYS.forEach(p => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="n">${p.num}</span>${p.name}`;
+    b.onclick = () => {
+      list.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      filmPlay = p;
+      $('filmTitle').textContent = p.name;
+      $('filmCue').textContent = p.cue;
+      $('filmCardImg').src = p.card;
+      const svg = $('filmField');
+      drawField(svg); drawFormation(svg, p);
+    };
+    list.appendChild(b);
+  });
+  drawField($('filmField')); drawFormation($('filmField'), null);
+  $('filmRun').onclick = () => {
+    if (!filmPlay) { $('filmCue').textContent = 'Pick a play first!'; return; }
+    say('Power I Right. ' + filmPlay.name + '!');
+    animatePlay($('filmField'), filmPlay);
+  };
+  $('filmCard').onclick = () => {
+    const img = $('filmCardImg');
+    if (!filmPlay) { $('filmCue').textContent = 'Pick a play first!'; return; }
+    img.style.display = img.style.display === 'none' ? 'block' : 'none';
+  };
+}
+
+/* =========================================================
+   Shared quiz helpers: drive, celebration, scoring
+   ========================================================= */
+function shuffle(a) { a = a.slice(); for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+
+function celebrate(text) {
+  const b = $('banner');
+  b.textContent = text;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  const c = $('confetti');
+  const colors = ['#ffc93c','#d5232e','#39e0c0','#ffffff','#ff9e2c'];
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('i');
+    p.style.left = Math.random()*100 + 'vw';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = (1.4 + Math.random()*1.6) + 's';
+    p.style.animationDelay = (Math.random()*.4) + 's';
+    p.style.transform = `rotate(${Math.random()*360}deg)`;
+    c.appendChild(p);
+    setTimeout(() => p.remove(), 3400);
+  }
+}
+
+function updateDrive(prefix, st) {
+  $(prefix+'Yards').textContent = st.yards;
+  $(prefix+'Streak').textContent = st.streak;
+  $(prefix+'Qno').textContent = `Play ${Math.min(st.q+1, st.total)} of ${st.total}`;
+  const pct = 4 + Math.min(1, (st.yards % 100) / 100) * 88;
+  $(prefix+'Ball').style.left = pct + '%';
+}
+
+function scoreGain(st, speedMs) {
+  let gain = 10;
+  if (speedMs < 3500) gain += 5; else if (speedMs < 7000) gain += 3;
+  st.streak++;
+  if (st.streak >= 3) gain += 5;
+  const before = Math.floor(st.yards / 100);
+  st.yards += gain;
+  if (Math.floor(st.yards / 100) > before) celebrate('🏈 TOUCHDOWN!');
+  return gain;
+}
+
+/* =========================================================
+   NAME THAT PLAY
+   ========================================================= */
+const nameSt = { q:0, total:8, yards:0, streak:0, order:[], t0:0, busy:false };
+function nameStart() {
+  Object.assign(nameSt, { q:0, yards:0, streak:0, busy:false,
+    order: shuffle(PLAYS).concat(shuffle(PLAYS)).slice(0, 8) });
+  $('nameStartRow').style.display = 'none';
+  $('nameDrive').style.display = 'block';
+  $('nameFieldWrap').style.display = 'block';
+  $('nameMsg').style.display = 'none';
+  nameNext();
+}
+function nameNext() {
+  if (nameSt.q >= nameSt.total) return nameFinish();
+  updateDrive('name', nameSt);
+  const play = nameSt.order[nameSt.q];
+  $('nameChoices').innerHTML = '';
+  const decoys = shuffle(PLAYS.filter(p => p.key !== play.key)).slice(0, 3);
+  const opts = shuffle([play, ...decoys]);
+  animatePlay($('nameField'), play, () => {
+    nameSt.t0 = performance.now();
+    opts.forEach(o => {
+      const b = document.createElement('button');
+      b.textContent = o.name;
+      b.onclick = () => nameAnswer(b, o, play);
+      $('nameChoices').appendChild(b);
+    });
+  });
+}
+function nameAnswer(btn, picked, play) {
+  if (nameSt.busy) return; nameSt.busy = true;
+  const speed = performance.now() - nameSt.t0;
+  document.querySelectorAll('#nameChoices button').forEach(b => {
+    b.disabled = true;
+    if (b.textContent === play.name) b.classList.add('correct');
+  });
+  const msg = $('nameMsg'); msg.style.display = 'block';
+  if (picked.key === play.key) {
+    const gain = scoreGain(nameSt, speed);
+    msg.textContent = `✅ ${play.name}! +${gain} yards. ${play.cue}`;
+  } else {
+    btn.classList.add('wrong');
+    nameSt.streak = 0;
+    msg.textContent = `❌ That was ${play.name}. ${play.cue}`;
+  }
+  nameSt.q++;
+  updateDrive('name', nameSt);
+  setTimeout(() => { nameSt.busy = false; $('nameChoices').innerHTML=''; nameNext(); }, 2600);
+}
+function nameFinish() {
+  updateDrive('name', nameSt);
+  saveScore(nameSt.yards, 'Name It');
+  $('nameMsg').style.display = 'block';
+  $('nameMsg').innerHTML = `🏁 Drive over! You gained <b>${nameSt.yards} yards</b>. ` +
+    (nameSt.yards >= 100 ? 'TOUCHDOWN drive — you know these plays! 🐝' : 'Hit the Film Room and run it back!');
+  $('nameStartRow').style.display = 'flex';
+  $('nameStart').textContent = '🔁 Play Again';
+  celebrate(nameSt.yards >= 100 ? '🐝 GO BEES!' : '💪 NICE DRIVE!');
+}
+$('nameStart').onclick = nameStart;
+
+/* =========================================================
+   RUN YOUR ROUTE
+   ========================================================= */
+const CHIP_COLORS = ['#ffc93c', '#39e0c0', '#c792ff'];
+const routeSt = { pos:null, q:0, total:8, yards:0, streak:0, order:[], t0:0, busy:false };
+
+function initRoutePick() {
+  const grid = $('posGrid');
+  POSITIONS.forEach(p => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="big">${p.icon}</span>${p.label}`;
+    b.onclick = () => routeStart(p);
+    grid.appendChild(b);
+  });
+}
+function routeStart(pos) {
+  Object.assign(routeSt, { pos, q:0, yards:0, streak:0, busy:false,
+    order: shuffle(PLAYS).concat(shuffle(PLAYS)).slice(0, 8) });
+  $('routePick').style.display = 'none';
+  $('routeGame').style.display = 'block';
+  $('routePos').textContent = pos.icon + ' You are the ' + pos.label;
+  routeNext();
+}
+function routeKeyOf(r) { return r === 'stay' ? 'stay' : JSON.stringify(r); }
+
+function routeNext() {
+  if (routeSt.q >= routeSt.total) return routeFinish();
+  updateDrive('route', routeSt);
+  $('routeMsg').style.display = 'none';
+  const play = routeSt.order[routeSt.q];
+  const pos = routeSt.pos;
+  $('routeCall').innerHTML = `📣 Coach calls: <b>"Power I Right… ${play.name}!"</b> — where do YOU go?`;
+  say('Power I Right. ' + play.name + '. Where do you go?');
+
+  const correct = play.routes[pos.id];
+  const correctKey = routeKeyOf(correct);
+  // decoys: this position's routes from other plays, must differ from correct
+  const pool = [];
+  const seen = new Set([correctKey]);
+  for (const p of shuffle(PLAYS)) {
+    if (p.key === play.key) continue;
+    const r = p.routes[pos.id];
+    const k = routeKeyOf(r);
+    if (seen.has(k)) continue;
+    seen.add(k); pool.push(r);
+    if (pool.length === 2) break;
+  }
+  // fallback decoys if the position's routes repeat a lot
+  const spare = [[[50,53],[38,50],[30,44]], [[50,59],[40,56],[32,48]], [[58,53],[58,44],[58,36]]];
+  while (pool.length < 2) {
+    const s = spare.shift();
+    if (routeKeyOf(s) !== correctKey) pool.push(s);
+  }
+
+  const options = shuffle([{ r: correct, ok:true }, { r: pool[0], ok:false }, { r: pool[1], ok:false }]);
+
+  const svg = $('routeField');
+  drawField(svg); drawFormation(svg, null);
+  const roster = [...LINE, ...BACKS];
+  const base = roster.find(p => p.id === pos.id);
+  // highlight the kid's player
+  const me = svg.querySelector(`g[data-id="${pos.id}"]`);
+  el('circle', { cx:base.x, cy:base.y, r:3.2, fill:'none', stroke:'#ffc93c', 'stroke-width':.6,
+    'stroke-dasharray':'1.2 .9' }, me);
+
+  const letters = ['A','B','C'];
+  $('routeChips').innerHTML = '';
+  options.forEach((o, i) => {
+    const color = CHIP_COLORS[i];
+    if (o.r === 'stay') {
+      const t = el('text', { x:base.x+6.5, y:base.y+1, 'font-size':3, fill:color, 'font-weight':'900' }, svg);
+      t.textContent = letters[i] + ': FREEZE!';
+    } else {
+      el('path', { d: pathD(o.r), fill:'none', stroke:color, 'stroke-width':.85,
+        'stroke-linecap':'round', opacity:.95 }, svg);
+      const end = o.r[o.r.length-1];
+      el('circle', { cx:end[0], cy:end[1], r:2.1, fill:color }, svg);
+      const t = el('text', { x:end[0], y:end[1]+1, 'text-anchor':'middle', 'font-size':2.6,
+        fill:'#1b2430', 'font-weight':'900' }, svg);
+      t.textContent = letters[i];
+    }
+    const b = document.createElement('button');
+    b.textContent = letters[i];
+    b.style.background = color;
+    b.onclick = () => routeAnswer(o, play, options, i);
+    $('routeChips').appendChild(b);
+  });
+  svg.appendChild(me);
+  routeSt.t0 = performance.now();
+}
+
+function routeAnswer(opt, play, options, idx) {
+  if (routeSt.busy) return; routeSt.busy = true;
+  const speed = performance.now() - routeSt.t0;
+  const msg = $('routeMsg'); msg.style.display = 'block';
+  document.querySelectorAll('#routeChips button').forEach((b, i) => {
+    b.disabled = true;
+    if (!options[i].ok) b.style.opacity = .35;
+  });
+  if (opt.ok) {
+    const gain = scoreGain(routeSt, speed);
+    msg.textContent = `✅ That's your job! +${gain} yards. ${play.cue}`;
+  } else {
+    routeSt.streak = 0;
+    const okIdx = options.findIndex(o => o.ok);
+    msg.textContent = `❌ Not that one — your route was ${['A','B','C'][okIdx]}. ${play.cue}`;
+  }
+  // show the real play so the assignment sinks in
+  setTimeout(() => animatePlay($('routeField'), play), 600);
+  routeSt.q++;
+  updateDrive('route', routeSt);
+  setTimeout(() => { routeSt.busy = false; routeNext(); }, 3600);
+}
+
+function routeFinish() {
+  updateDrive('route', routeSt);
+  saveScore(routeSt.yards, 'My Route (' + routeSt.pos.short + ')');
+  $('routeCall').innerHTML = `🏁 Drive over, ${store.get('bees-player','player')}! You gained <b>${routeSt.yards} yards</b> at ${routeSt.pos.label}.`;
+  $('routeChips').innerHTML = '';
+  $('routeMsg').style.display = 'block';
+  $('routeMsg').innerHTML = routeSt.yards >= 100 ? 'TOUCHDOWN drive — you know your job! 🐝' : 'Run it back — champions repeat their reps!';
+  const b = document.createElement('button');
+  b.className = 'btn gold big'; b.style.width = '100%'; b.style.marginTop = '10px';
+  b.textContent = '🔁 New Drive';
+  b.onclick = () => { $('routeGame').style.display = 'none'; $('routePick').style.display = 'block'; };
+  $('routeMsg').appendChild(b);
+  celebrate(routeSt.yards >= 100 ? '🐝 GO BEES!' : '💪 NICE DRIVE!');
+}
+
+/* =========================================================
+   LEADERBOARD (localStorage; optional remote via window.BEES_API)
+   ========================================================= */
+function saveScore(yards, mode) {
+  const name = store.get('bees-player', 'Player');
+  const board = store.get('bees-board', []);
+  board.push({ name, yards, mode, ts: Date.now() });
+  board.sort((a, b) => b.yards - a.yards);
+  store.set('bees-board', board.slice(0, 50));
+  if (window.BEES_API) {
+    fetch(window.BEES_API + '/score', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ name, yards, mode, pw:'gobees' }),
+    }).catch(() => {});
+  }
+}
+async function renderBoard() {
+  let rows = store.get('bees-board', []);
+  if (window.BEES_API) {
+    try {
+      const r = await fetch(window.BEES_API + '/board');
+      if (r.ok) { rows = await r.json(); $('boardHint').textContent = 'Live team leaderboard — best total yards. Take the top spot!'; }
+    } catch {}
+  }
+  // best score per player+mode keeps the table meaningful
+  const best = {};
+  for (const r of rows) {
+    const k = r.name.toLowerCase() + '|' + r.mode;
+    if (!best[k] || r.yards > best[k].yards) best[k] = r;
+  }
+  const list = Object.values(best).sort((a, b) => b.yards - a.yards).slice(0, 15);
+  const me = store.get('bees-player', '').toLowerCase();
+  const medals = ['🥇','🥈','🥉'];
+  $('boardBody').innerHTML = list.length
+    ? list.map((r, i) =>
+        `<tr class="${r.name.toLowerCase() === me ? 'me' : ''}">
+          <td class="rank">${medals[i] || (i+1)}</td>
+          <td>${r.name.replace(/[<>&]/g, '')}</td>
+          <td><b>${r.yards}</b></td>
+          <td class="muted">${r.mode}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="4" class="muted">No drives yet — be the first Bee on the board!</td></tr>';
+}
+$('boardClear').onclick = () => {
+  if (confirm('Clear all scores saved on this device?')) { store.set('bees-board', []); renderBoard(); }
+};
+
+/* optional remote leaderboard config (see README) */
+const cfg = document.createElement('script');
+cfg.src = 'config.js'; cfg.onerror = () => {};
+document.head.appendChild(cfg);
+
+/* =========================================================
+   Boot
+   ========================================================= */
+initGate();
+initFilm();
+initRoutePick();
+</script>
+</body>
+</html>
